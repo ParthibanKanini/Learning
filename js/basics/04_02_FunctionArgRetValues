@@ -1,0 +1,44 @@
+console.log("Function Parameters, arguments, return values");
+console.log("==============================================");
+
+/*
+In JavaScript, functions can take parameters, which are variables listed as part of the function definition.
+When a function is called, you can pass values (arguments) to these parameters.
+Functions can also return values using the return statement.
+*/
+
+console.log("\nFunction with Parameters:");
+console.log("---------------------------");
+function multiply(a, b) {
+  return a * b;
+}
+console.log(multiply(5, 10)); // Calling the function with arguments
+console.log(multiply(2, 3)); // Calling the function with different arguments
+
+console.log("\nFunction with Default Parameters:");
+console.log("---------------------------------");   
+function greet(name = "Guest") {
+  return `Hello, ${name}!`;
+}
+console.log(greet()); // No argument passed, uses default value
+console.log(greet("Alice")); // Argument passed, overrides default value
+
+
+console.log("\nFunction with Return Value:");
+console.log("------------------------------");   
+function add(a, b) {
+  return a + b; // Returns the sum of a and b
+}   
+console.log(add(5, 10)); // Calling the function and logging the return value
+console.log(add(2, 3)); // Calling the function with different arguments
+
+console.log("\nFunction with Multiple Return Values:");
+console.log("---------------------------------------");
+function getUserInfo() {
+  const name = "John";
+  const age = 30;
+  return { name, age }; // Returns an object with multiple properties
+}
+const userInfo = getUserInfo(); // Calling the function and storing the returned object
+console.log(`Name: ${userInfo.name}, Age: ${userInfo.age}`); // Logging the properties of the returned object
+
