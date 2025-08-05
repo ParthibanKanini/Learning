@@ -1,0 +1,102 @@
+/**
+ * Refer to #01_04_09_NonPrimitive_DataType_Promise for basics of Promises
+ */
+
+console.log("\n1. Promise States (Pending, Fulfilled, Rejected):");
+console.log("------------------------------------------------");
+// Fulfilled Promise
+let fulfilledPromiseType = Promise.resolve("This promise is fulfilled.");
+console.log("fulfilledPromise:", fulfilledPromiseType);
+
+// Pending Promise (will be fulfilled)
+let pendingPromiseType = new Promise((resolve) => {
+  setTimeout(() => resolve("Pending promise now fulfilled."), 500);
+});
+console.log("pendingPromise (initial):", pendingPromiseType);
+
+// Rejected Promise
+//let rejectedPromiseType = Promise.reject("This promise is rejected.");
+//console.log("rejectedPromise:", rejectedPromiseType);
+
+// =============================
+// USING .then() and .catch()
+// =============================
+console.log("\n2. Using .then() and .catch():");
+console.log("------------------------------");
+
+// 2.1 Successful promise chain
+let successPromise = new Promise((resolve) => {
+  // Simulating an asynchronous successful resolve after 500ms
+  setTimeout(() => resolve("successPromise: Successful response data"), 500);
+});
+
+successPromise
+  .then((result) => {
+    console.log("successPromise: Success:", result);
+    return result.toUpperCase(); // Transform the data
+  }) // Using .then() chaining to handle the resolved values of a promise.
+  .then((transformedResult) => {
+    console.log("successPromise: Transformed:", transformedResult);
+  }) // .catch() for handling errors
+  .catch((error) => {
+    console.log("Error:", error);
+  });
+
+// 2.2 Failed promise chain
+let failPromise = new Promise((resolve, reject) => {
+  // Simulating an asynchronous successful resolve after 500ms
+  setTimeout(() => reject("failPromise: Something went wrong!"), 700);
+});
+
+failPromise
+  .then((result) => {
+    console.log("This won't run:", result);
+  })
+  .catch((error) => {
+    console.log("failPromise: Caught error:", error);
+  });
+
+console.log("\n3. Promise Chaining:");
+console.log("--------------------");
+
+function step1() {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      console.log(" Step 1 completed");
+      resolve("data from step 1");
+    }, 300);
+  });
+}
+
+function step2(dataFromStep1) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      console.log(" Step 2 completed with:", dataFromStep1);
+      resolve("data from step 2");
+    }, 300);
+  });
+}
+
+function step3(dataFromStep2) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      console.log(" Step 3 completed with:", dataFromStep2);
+      resolve("final result");
+    }, 300);
+  });
+}
+
+// Chain the promises
+step1()
+  .then(step2)
+  .then(step3)
+  .then((finalResult) => {
+    console.log(" Final result:", finalResult);
+  })
+  .catch((error) => {
+    console.log(" Chain failed:", error);
+  });
+
+console.log(
+  "\n Note: Some results will appear after delays due to setTimeout!"
+);

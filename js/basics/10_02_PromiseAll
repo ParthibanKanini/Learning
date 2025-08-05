@@ -1,0 +1,76 @@
+/**
+ * Refer to #01_04_09_NonPrimitive_DataType_Promise for basics of Promises
+ */
+
+console.log("\n Promise.all() - Wait for multiple promises:");
+console.log("----------------------------------------------");
+
+console.log(
+  "\n<< Works executed in parallel, and successfully completed in any order >>"
+);
+// 1. All works complete successfully
+let work1 = new Promise((resolve) =>
+  setTimeout(() => resolve(console.log("Work 1 completed.")), 1000)
+);
+let work2 = new Promise((resolve) =>
+  setTimeout(() => resolve(console.log("Work 2 completed.")), 1500)
+);
+let work3 = new Promise((resolve) =>
+  setTimeout(() => resolve(console.log("Work 3 completed.")), 800)
+);
+
+Promise.all([work1, work2, work3])
+  .then((results) => {
+    console.log("Wow: All the work completed successfully:");
+    // Iterate results array and print each result
+    results.forEach((result, index) => {
+      console.log(`Result ${index + 1}:`, result);
+    });
+  })
+  .catch((error) => {
+    console.log("Oops: One or more works failed:", error);
+  });
+
+// Use a promise to delay the execution of following code
+await new Promise((resolve) => {
+  setTimeout(() => {
+    resolve("Waiting for previous work to complete.");
+  }, 1000);
+});
+
+console.log(
+  "\n<< Tasks executed in parallel, and Task B is failed explicitly >>"
+);
+let taskA = Promise.resolve("Task A success.");
+let taskB = Promise.reject("Task B failed.");
+let taskC = Promise.resolve("Task C success.");
+
+Promise.all([taskA, taskB, taskC])
+  .then((results) => {
+    console.log("Wow: All tasks completed:", results);
+  })
+  .catch((error) => {
+    console.log("Oops: Promise failed with error:", error);
+  });
+
+// Use a promise to delay the execution of following code
+await new Promise((resolve) => {
+  setTimeout(() => {
+    resolve("Waiting for previous work to complete.");
+  }, 1000);
+});
+
+console.log("\nPromise.race() - First to complete wins:");
+console.log("-------------------------------------------");
+
+let fastTask = new Promise((resolve) =>
+  setTimeout(() => resolve("Fast task won!"), 500)
+);
+let slowTask = new Promise((resolve) =>
+  setTimeout(() => resolve("Slow task completed"), 600)
+);
+// Promise.race will resolve with the first completed promise
+// regardless of whether it was fulfilled or rejected.
+Promise.race([fastTask, slowTask]).then((result) => {
+  console.log("Race winner:", result);
+});
