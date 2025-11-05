@@ -1,0 +1,9 @@
+{
+  "name": "stage",
+  "baseUrl": "https://automationexercise.com/login",
+  "defaultUser": {
+    "username": "Stage Test User",
+    "email": "stageUser@kanini.com",
+    "password": "CHANGEME"
+  }
+}

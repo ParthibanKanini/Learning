@@ -1,0 +1,9 @@
+{
+  "name": "qa",
+  "baseUrl": "https://automationexercise.com/login",
+  "defaultUser": {
+    "username": "QA Test user",
+    "email": "qa@kanini.com",
+    "password": "X2tHKU5XZW5PU1pmOFF4ejcpeUI="
+  }
+}

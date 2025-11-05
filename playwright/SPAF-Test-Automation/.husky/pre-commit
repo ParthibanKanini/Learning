@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+. "$(dirname "$0")/_/husky.sh"
+
+npm run code:lint:fix
+npm run code:format
+npm run test:smoke

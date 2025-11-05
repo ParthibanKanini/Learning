@@ -1,0 +1,27 @@
+name: Nightly Regression
+
+on:
+  schedule:
+    - cron: '15 2 * * *' # 02:15 UTC daily
+  workflow_dispatch:
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci
+      - run: npx playwright install --with-deps
+      - run: APP_ENV=qa npx playwright test --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.browser }}
+          path: |
+            playwright-report
+            results

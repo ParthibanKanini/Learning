@@ -1,0 +1,108 @@
+{
+  "name": "spaf-test-automation",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Playwright + TypeScript test automation framework for web application testing",
+  "keywords": [
+    "playwright",
+    "typescript",
+    "e2e",
+    "testing",
+    "automation",
+    "data-driven"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "clean": "rimraf logs reports node_modules .scannerwork coverage ./package-lock.json && npm cache clean --force",
+    "clean:install": "rimraf logs reports node_modules .scannerwork coverage ./package-lock.json && npm install",
+    "install:browsers": "npx playwright install",
+    "install:deps": "npx playwright install-deps",
+    "test": "playwright test",
+    "test:p1": "cross-env RECORD_VIDEO=always playwright test --grep \"@p1\"",
+    "test:p1:headed": "cross-env RECORD_VIDEO=always playwright test --grep \"@p1\" --headed",
+    "test:p1:debug": "cross-env RECORD_VIDEO=always playwright test --grep \"@p1\" --headed --debug",
+    "test:p2": "cross-env RECORD_VIDEO=always playwright test --grep \"@p2\"",
+    "test:p2:headed": "cross-env RECORD_VIDEO=always playwright test --grep \"@p2\" --headed",
+    "test:p2:debug": "cross-env RECORD_VIDEO=always playwright test --grep \"@p2\" --headed --debug",
+    "test:sanity": "cross-env RECORD_VIDEO=always playwright test --grep \"@sanity\"",
+    "test:sanity:headed": "cross-env RECORD_VIDEO=always playwright test --grep \"@sanity\" --headed",
+    "test:sanity:debug": "cross-env RECORD_VIDEO=always playwright test --grep \"@sanity\" --headed --debug",
+    "test:smoke": "cross-env RECORD_VIDEO=always playwright test --grep \"@smoke\"",
+    "test:smoke:headed": "cross-env RECORD_VIDEO=always playwright test --grep \"@smoke\" --headed",
+    "test:smoke:debug": "cross-env RECORD_VIDEO=always playwright test --grep \"@smoke\" --headed --debug",
+    "test:regression": "cross-env RECORD_VIDEO=always playwright test --grep \"@regression\"",
+    "test:regression:headed": "cross-env RECORD_VIDEO=always playwright test --grep \"@regression\" --headed",
+    "test:regression:debug": "cross-env RECORD_VIDEO=always playwright test --grep \"@regression\" --headed --debug",
+    "test:parallel": "playwright test --workers=4",
+    "test:serial": "playwright test --workers=1",
+    "test:specific": "playwright test --grep",
+    "test:report": "npx playwright show-report reports/html-report",
+    "test:report:clean": "rimraf logs reports playwright-report allure-report allure-results results",
+    "test:trace": "npx playwright show-trace",
+    "test:codegen": "npx playwright codegen",
+    "test:ui": "npx playwright test --ui",
+    "code:lint": "eslint . --ext .ts,.js",
+    "code:lint:dryrun": "eslint . --ext .ts,.js --fix-dry-run",
+    "code:lint:fix": "eslint . --ext .ts,.js --fix",
+    "code:format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "code:format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
+    "code:typecheck": "tsc --noEmit",
+    "code:quality": "npm run code:lint:fix && npm run code:format && npm run code:typecheck",
+    "prepare": "husky install",
+    "pretest": "npm run code:typecheck",
+    "postinstall": "npx playwright install",
+    "sonar": "npx tsx sonar-scan.ts",
+    "sonar:analysis": "npm run sonar",
+    "sonar:local": "npm run sonar",
+    "sonar:clean": "rimraf .scannerwork coverage",
+    "ci:test": "npm run code:quality && npm run test",
+    "ci:install": "npm ci && npm run install:browsers",
+    "test:allure:generate": "npx allure generate reports/allure-results --clean -o reports/allure-report",
+    "test:allure:open": "npx allure open reports/allure-report",
+    "test:allure:serve": "npx allure serve reports/allure-results"
+  },
+  "lint-staged": {
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "volta": {
+    "node": "20.19.12",
+    "npm": "10.9.3"
+  },
+  "overrides": {
+    "axios": "^1.12.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "allure-commandline": "^2.32.0",
+    "allure-playwright": "^3.3.4",
+    "cross-env": "^10.0.0",
+    "dotenv": "^17.2.2",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-playwright": "^2.1.1",
+    "eslint-plugin-prettier": "^5.5.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "pino": "^9.6.0",
+    "pino-pretty": "^10.3.1",
+    "prettier": "^3.5.0",
+    "rimraf": "^6.0.1",
+    "sonarqube-scanner": "^4.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  },
+  "author": "Parthiban Chinnakkannan"
+}

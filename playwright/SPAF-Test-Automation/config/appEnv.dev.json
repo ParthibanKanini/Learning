@@ -1,0 +1,9 @@
+{
+  "name": "dev",
+  "baseUrl": "https://automationexercise.com/login",
+  "defaultUser": {
+    "username": "Dev Test User",
+    "email": "test@kanini.com",
+    "password": "dGVzdEthbmluaQ=="
+  }
+}

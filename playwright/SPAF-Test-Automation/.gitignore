@@ -1,0 +1,15 @@
+.DS_Store
+.env.local
+.playwright-mcp/
+*.log
+sonar-project.properties
+sonar-scan.ts
+TODO.md
+DemoScript.md
+dist/
+logs/
+node_modules/
+reports/
+sonar/
+specs/
+trash/
