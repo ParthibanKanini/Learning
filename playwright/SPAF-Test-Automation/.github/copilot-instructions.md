@@ -1,6 +1,6 @@
-# GitHub Copilot Instructions - DNAV Playwright Framework
+# GitHub Copilot Instructions - Smart Playwright Automation Framework
 
-This is an enterprise-grade Playwright automation framework for **Deloitte Net Asset Value (DNAV)** workflows, implementing sophisticated architectural patterns for scalable E2E testing.
+This is an enterprise-grade Playwright automation framework for **Web based application test automation** workflows, implementing sophisticated architectural patterns for scalable E2E testing.
 
 ## Framework Architecture & Patterns
 
@@ -115,6 +115,7 @@ npm run install:browsers       # Playwright browser setup
 ### Critical Integration Points
 
 - **Authentication**: Worker-scoped fixtures for performance (`/fixtures/login.fixtures.ts`)
+- **Test Imports**: All test spec should import test from custom fixture (`import { test } from '../fixtures/login.fixtures.js';`)
 - **Navigation**: Centralized in `BasePage.locators` for cross-page navigation
 - **Reporting**: Allure, HTML, JUnit configured in `playwright.config.ts`
 - **Error Handling**: Structured logging with try-catch in workflows

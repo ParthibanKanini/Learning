@@ -11,5 +11,4 @@ logs/
 node_modules/
 reports/
 sonar/
-specs/
 trash/

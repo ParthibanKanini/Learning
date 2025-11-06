@@ -1,7 +1,7 @@
 import { expect, Page } from '@playwright/test';
 
 import { BasePage } from './Base.page.js';
-import { waitForAPIResponse } from '../utils/testUtil.js';
+//import { waitForAPIResponse } from '../utils/testUtil.js';
 import { TIMEOUTS } from '../utils/timeouts.js';
 
 export default class HomePage extends BasePage {
@@ -26,11 +26,11 @@ export default class HomePage extends BasePage {
       await super.assertPageLoaded();
       // Wait for the main page elements to load
       //await expect(this.locators.defaultLandingPage).toBeVisible({ timeout: TIMEOUTS.MEDIUM });
-      await waitForAPIResponse(
+      /*await waitForAPIResponse(
         this.page,
         '/api/v2/applauncher/menus?languageCode=en-US&appName=Omnia',
         TIMEOUTS.LONG,
-      );
+      );*/
       this.pageLogger.info('Dashboard Page loaded successfully & ready for interaction');
     } catch (error) {
       this.pageLogger.error(`Failed to assert Dashboard Page loaded: ${String(error)}`);

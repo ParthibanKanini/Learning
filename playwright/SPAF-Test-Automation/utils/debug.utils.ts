@@ -1,5 +1,6 @@
-import { Page, Locator } from '@playwright/test';
+//import { Page, Locator } from '@playwright/test';
 
+/*
 // Check what input fields are available
 const inputs = await page.locator('input').all();
 console.log(`Found ${inputs.length} input elements`);
@@ -19,4 +20,5 @@ for (let i = 0; i < inputs.length; i++) {
     label,
     id,
   });
-}
+
+}*/
