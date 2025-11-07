@@ -1,22 +1,46 @@
-import { test as baseTest, Page } from '@playwright/test';
+import { test as baseTest, expect, Page } from '@playwright/test';
 import { createTestLogger } from 'utils/logger.js';
 import LoginPage from '@pages/Login.page.js';
 import HomePage from '@pages/Home.page.js';
 import { PageFactory } from '@pages/PageFactory.js';
 import { getUser } from 'data/TestUser.factory.js';
 
-// Test-scoped fixtures (available to each test)
+/**
+ * Login Fixtures - Authentication Strategy for Playwright Tests
+ * This fixture file implements a worker-scoped authentication strategy
+ * for Playwright tests, optimizing performance by authenticating
+ * once per worker thread rather than per test.
+ *
+ * This approach reduces the overhead of repeated logins and
+ * improves test execution speed. Same page instance across all tests in worker.
+ * Context closed when worker finishes.
+ */
+
+// The fixture extends Playwright's base test with two types of fixtures:
+// a. Test-scoped fixtures (available to each test)
 type TestFixtures = {
   pageFactory: PageFactory;
 };
 
-// Worker-scoped fixtures (shared across tests in same worker)
+// b. Worker-scoped fixtures (shared across tests in same worker)
 type WorkerFixtures = {
   authenticatedPage: Page;
 };
 
+/*
+ * Worker-scoped: Authenticate ONCE per worker and reuse the same page
+ * Authenticate once per worker thread instead of before each test.
+ * Eliminates repetitive login overhead and improves test performance.
+ * The same authenticated page is shared across all tests in a worker with one brwowser context.
+ *
+ * Worker Setup: Login once
+ * ├── Test 1: Use authenticated page
+ * ├── Test 2: Use authenticated page
+ * └── Test 3: Use authenticated page
+ * Worker Cleanup: Close context
+ * 1x login overhead per worker
+ */
 export const test = baseTest.extend<TestFixtures, WorkerFixtures>({
-  // Worker-scoped: Authenticate ONCE per worker and reuse the same page
   authenticatedPage: [
     async ({ browser }, use, workerInfo) => {
       const fixtureLogger = createTestLogger('AuthenticatedPage');
@@ -31,12 +55,12 @@ export const test = baseTest.extend<TestFixtures, WorkerFixtures>({
         await loginPage.go(); // Navigate to login page first
         await loginPage.login(getUser('default_user'));
         // Verify authentication succeeded
-        const dashboardPage = new HomePage(page);
-        await dashboardPage.assertPageLoaded();
+        const homePage = new HomePage(page);
+        await homePage.assertPageLoaded();
         fixtureLogger.info(
           `Worker ${workerInfo.workerIndex}: Authentication completed successfully - page ready for reuse`,
         );
-        // Provide the same authenticated page to all tests in this worker
+        // Provide the same authenticated page to all the tests in this worker
         await use(page);
       } catch (error) {
         fixtureLogger.error(
@@ -51,7 +75,12 @@ export const test = baseTest.extend<TestFixtures, WorkerFixtures>({
     { scope: 'worker' },
   ],
 
-  // Test-scoped: Reuse the same authenticated page for each test
+  /*
+   * Test-scoped: Reuse the same authenticated page for each test
+   * Each test gets a fresh PageFactory instance.
+   * Ensures consistent starting point.
+   * Provides centralized page object instantiation
+   */
   pageFactory: async ({ authenticatedPage }, use, testInfo) => {
     const testLogger = createTestLogger('PageFactory');
     const workerIndex = testInfo.parallelIndex;
@@ -76,3 +105,5 @@ export const test = baseTest.extend<TestFixtures, WorkerFixtures>({
     // Note: We don't close the page here since it's shared across tests in the worker
   },
 });
+
+export { expect }; // re-export if you want to import from the fixture file

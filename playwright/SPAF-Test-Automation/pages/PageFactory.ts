@@ -3,6 +3,7 @@ import { Page } from '@playwright/test';
 // TODO: Import all POM classes as needed for the project
 import LoginPage from './Login.page.js';
 import HomePage from './Home.page.js';
+import ProductDetailPage from './ProductDetail.page.js';
 
 /**
  * PageFactory - Centralized factory for creating Page Object Model instances
@@ -55,6 +56,14 @@ export class PageFactory {
 
   getHomePage(): HomePage {
     return this.getOrCreatePage('home', () => new HomePage(this.page));
+  }
+
+  /**
+   * Creates or retrieves a cached ProductDetailPage instance
+   * @returns ProductDetailPage instance for product detail operations
+   */
+  getProductDetailPage(): ProductDetailPage {
+    return this.getOrCreatePage('productDetail', () => new ProductDetailPage(this.page));
   }
 
   // Convenience method to get multiple commonly used pages

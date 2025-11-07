@@ -3,6 +3,34 @@ import { log } from './logger';
 import { TIMEOUTS } from './timeouts';
 
 /**
+ * Waits for the DOMContentLoaded event to ensure the initial HTML document
+ * has been completely loaded and parsed.
+ * External resources (like stylesheets/images) may still be loading.
+ * @param page
+ */
+export async function waitForDOMContentLoaded(page: Page): Promise<void> {
+  await page.waitForLoadState('domcontentloaded', { timeout: TIMEOUTS.LONG });
+}
+
+/**
+ * Iterate & wait for any loading spinner to disappear from the page
+ * @param loaderLocator
+ */
+export async function waitForLoaderToDisappear(loaderLocator: Locator): Promise<void> {
+  const loaderCount = await loaderLocator.count();
+  if (loaderCount > 0) {
+    log.debug(`Found ${loaderCount} loading indicators, waiting for them to disappear`);
+    for (let i = 0; i < loaderCount; i++) {
+      if (loaderLocator.nth(i) && (await loaderLocator.nth(i).isVisible())) {
+        log.info(`Waiting for loader ${i + 1} of ${loaderCount} to disappear`);
+        await loaderLocator.nth(i).waitFor({ state: 'detached', timeout: TIMEOUTS.LONG });
+      }
+    }
+    log.info(`All ${loaderCount} loading indicators have disappeared`);
+  }
+}
+
+/**
  * Waits for a specific API response to complete successfully
  * @param page - Playwright Page object
  * @param url - URL pattern to wait for in the response

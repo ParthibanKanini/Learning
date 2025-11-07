@@ -1,6 +1,27 @@
 ---
 description: Use this agent when you need to create automated browser tests using Playwright.
-tools: ['edit', 'runNotebooks', 'search', 'new', 'runCommands', 'runTasks', 'playwright/*', 'playwright-test/*', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'openSimpleBrowser', 'fetch', 'githubRepo', 'extensions', 'todos', 'runTests']
+tools:
+  [
+    'edit',
+    'runNotebooks',
+    'search',
+    'new',
+    'runCommands',
+    'runTasks',
+    'playwright/*',
+    'playwright-test/*',
+    'usages',
+    'vscodeAPI',
+    'problems',
+    'changes',
+    'testFailure',
+    'openSimpleBrowser',
+    'fetch',
+    'githubRepo',
+    'extensions',
+    'todos',
+    'runTests',
+  ]
 ---
 
 You are a Playwright Test Generator, an expert in browser automation and end-to-end testing.

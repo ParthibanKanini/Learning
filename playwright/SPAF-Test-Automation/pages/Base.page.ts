@@ -1,7 +1,6 @@
 import { Page } from '@playwright/test';
 import { createPageLogger } from 'utils/logger';
-import { clickWithPrivacyHandling } from '../utils/testUtil.js';
-import { TIMEOUTS } from '../utils/timeouts.js';
+import { waitForDOMContentLoaded } from 'utils/wait.utils.js';
 /**
  * BasePage class that all page objects should extend.
  * This class provides a common interface for page objects and enforces
@@ -15,8 +14,7 @@ export abstract class BasePage {
     this.page = currentPage;
     /* The logger will include the page name in its context for better organization
        and filtering of logs related to specific pages.
-       Automatically gets the subclass name (e.g., 'LoginPage', 'DashboardPage', etc.)
-    */
+       Automatically gets the subclass name (e.g., 'LoginPage', 'DashboardPage', etc.)    */
     this.pageLogger = createPageLogger(this.constructor.name);
   }
 
@@ -29,7 +27,8 @@ export abstract class BasePage {
       defaultLandingPage: this.page.locator(
         'span.ant-page-header-heading-title[title="Dashboard"]',
       ),
-      dashboardMenu: this.page.getByRole('link', { name: 'Dashboard' }),
+      loaderLocator: this.page.locator('#main-anatomy-content div').filter({ hasText: 'Loading' }),
+      /*dashboardMenu: this.page.getByRole('link', { name: 'Dashboard' }),
       fullDnavMenu: this.page.getByRole('img', { name: 'Satchel' }),
       auditDirLink: this.page.getByRole('link', { name: 'Audit Directory', exact: true }),
       statusMonitorLink: this.page.locator('a[href="/US/status-monitor"]'),
@@ -61,9 +60,7 @@ export abstract class BasePage {
       marketDataMonitorLink: this.page.getByRole('menuitem', {
         name: 'Market Data Monitor',
       }),
-
-      auditsLink: this.page.locator('a[href="/US/audits"]'),
-      loaderLocator: this.page.locator('#main-anatomy-content div').filter({ hasText: 'Loading' }),
+      auditsLink: this.page.locator('a[href="/US/audits"]'),       */
     } as const;
   }
 
@@ -71,7 +68,7 @@ export abstract class BasePage {
     this.pageLogger.debug(`Navigating to section: '${section}' >> ${subSection ?? ''}`);
     try {
       switch (section.toLowerCase()) {
-        case 'dashboard':
+        /*case 'dashboard':
           return await this.locators.dashboardMenu.click();
         case 'full dnav':
           await this.locators.fullDnavMenu.click();
@@ -118,8 +115,7 @@ export abstract class BasePage {
         case 'market data monitor':
           return await this.locators.marketDataMonitorLink.click();
         case 'audits':
-          return await this.locators.auditsLink.click();
-
+          return await this.locators.auditsLink.click();         */
         default:
           this.pageLogger.error(`Unknown section: ${section}. Cannot navigate.`);
           return Promise.reject(new Error(`Unknown section: ${section}. Cannot navigate.`));
@@ -133,30 +129,14 @@ export abstract class BasePage {
       throw error;
     }
   }
-  // Force all page classes to implement assertPageLoaded method such that
-  // they assert based on the page's specific elements.
-  public async assertPageLoaded(): Promise<void> {
-    //DOM is fully parsed, but external resources (like stylesheets/images) may still be loading.
-    await this.page.waitForLoadState('domcontentloaded', { timeout: TIMEOUTS.LONG });
 
-    //iterate to wait for any loading spinner to disappear
-    const loaderCount = await this.locators.loaderLocator.count();
-    if (loaderCount > 0) {
-      this.pageLogger.debug(
-        `Found ${loaderCount} loading indicators, waiting for them to disappear`,
-      );
-      for (let i = 0; i < loaderCount; i++) {
-        if (
-          this.locators.loaderLocator.nth(i) &&
-          (await this.locators.loaderLocator.nth(i).isVisible())
-        ) {
-          this.pageLogger.info(`Waiting for loader ${i + 1} of ${loaderCount} to disappear`);
-          await this.locators.loaderLocator
-            .nth(i)
-            .waitFor({ state: 'detached', timeout: TIMEOUTS.LONG });
-        }
-      }
-      this.pageLogger.info(`All ${loaderCount} loading indicators have disappeared`);
-    }
+  /**
+   * Asserts that the page has fully loaded by checking for key elements.
+   * Each subclass must implement its own logic based on its unique elements.
+   */
+  public async assertPageLoaded(): Promise<void> {
+    await waitForDOMContentLoaded(this.page);
+    // await waitForLoaderToDisappear(this.locators.loaderLocator);
+    // Dismiss any privacy popups that may block interaction
   }
 }
