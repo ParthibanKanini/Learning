@@ -1,0 +1,333 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>pc.mvn.pkg.services</groupId>
+  <artifactId>order-service</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <!-- Character encoding for all source files and resources.
+         UTF-8 is the standard encoding for cross-platform compatibility and to support
+         international characters, comments, and documentation. -->
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- Java version target for this service.
+         Java 21 is an LTS (Long Term Support) release with modern language features,
+         performance improvements, and virtual threads (Project Loom). -->
+    <java.version>21</java.version>
+
+    <!-- Commons artifact version is independent of this service version.
+         This decoupling is important because:
+         - Schema (commons) can evolve at their own pace
+         - Multiple service versions can use the same schema
+         - Allows coordinated rollouts across multiple services consuming the same commons -->
+    <commons.version>0.0.1</commons.version>
+
+    <!-- Tool versions used for Protocol Buffer compilation and build management.
+         These are separated for easy maintenance and version updates:
+         - protobuf.version: Core Protobuf compiler version
+         - protobuf.plugin.version: Maven plugin version for Protobuf compilation
+         - os.maven.plugin.version: Detects OS classifier (windows, linux, mac) for binary selection
+         - maven.enforcer.version: Enforces build rules and prevents common mistakes -->
+    <protobuf.version>3.25.3</protobuf.version>
+    <protobuf.plugin.version>0.6.1</protobuf.plugin.version>
+    <os.maven.plugin.version>1.7.1</os.maven.plugin.version>
+    <maven.enforcer.version>3.5.0</maven.enforcer.version>
+  </properties>
+
+  <dependencies>
+    <!-- Schema-only JAR that contains `.proto` files
+         This dependency provides the Protocol Buffer schema definitions in the commons/dto module.
+         Schema-only (or "commons") JARs are a best practice in microservice architectures because:
+         - They enable code generation at build time without runtime dependencies
+         - They decouple schema evolution from service deployment
+         - Multiple services can consume the same schema independently
+         - Teams can evolve schemas in parallel with service implementations -->
+    <dependency>
+      <groupId>pc.mvn.pkg</groupId>
+      <artifactId>dto</artifactId>
+      <version>${commons.version}</version>
+    </dependency>
+
+    <!-- Protobuf runtime for generated Java classes
+         This library provides the runtime support needed by all Protobuf-generated Java classes.
+         It includes:
+         - Builder classes and base message implementations
+         - Serialization/deserialization logic (encoding and decoding)
+         - Utility methods for working with Protobuf messages
+         Note: The protocol buffer compiler (protoc) generates code that depends on this runtime. -->
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>${protobuf.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Maven Enforcer Plugin: Prevents common CI/CD problems and enforces build rules.
+           Benefits:
+           - Detects misconfigured environments early (before compilation)
+           - Prevents SNAPSHOT dependencies from accidentally reaching production
+           - Ensures consistent Java and Maven versions across the team
+           - Fails fast on build configuration issues (fail=true)
+           This is a best practice in enterprise builds to maintain consistency and quality. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven.enforcer.version}</version>
+        <executions>
+          <execution>
+            <id>enforce-basics</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <!-- Require Maven 3.8.6 or higher. Version 3.8.1+ includes important security fixes
+                     for blocking HTTP repositories (only HTTPS allowed by default). -->
+                <requireMavenVersion>
+                  <version>[3.8.6,)</version>
+                </requireMavenVersion>
+                <!-- Require Java 21 or higher to ensure the runtime environment matches
+                     the target compilation version specified in properties. This prevents
+                     surprising ClassNotDefFound errors at runtime. -->
+                <requireJavaVersion>
+                  <version>[21,)</version>
+                </requireJavaVersion>
+
+                <!-- Ban SNAPSHOT dependencies in release builds.
+                     SNAPSHOT versions are pre-release and can change unpredictably.
+                     In CI/release pipelines, only stable (release) versions should be used
+                     to ensure reproducible, deterministic builds. This rule prevents
+                     accidentally shipping unstable code to production. -->
+                <requireReleaseDeps />
+              </rules>
+              <!-- fail=true: Stop the build immediately if any rule fails, instead of just warning.
+                   This "fail fast" approach catches configuration problems early. -->
+              <fail>true</fail>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- OS Maven Plugin: Detects the operating system and processor architecture.
+           This plugin is essential for Protobuf compilation because:
+           - Generates properties like ${os.detected.classifier} (e.g., win32, linux-x86_64, osx-x86_64)
+           - Allows Maven to download the correct pre-compiled protoc binary for the build OS
+           - Eliminates the need for developers to manually compile protoc from source
+           - Ensures reproducible builds across different developer machines and CI environments
+           <extensions>true</extensions> makes the plugin available for use by other plugins. -->
+      <plugin>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>${os.maven.plugin.version}</version>
+        <extensions>true</extensions>
+      </plugin>
+
+      <!-- Step 1: Maven Dependency Plugin - Unpack schema files for code generation.
+           
+           This is the first step in the Protobuf code generation pipeline:
+           1. Extract .proto files from the dependency JAR (pc.mvn.pkg:dto-proto)
+           2. Place them in target/proto for processing by protoc
+           
+           Why unpack instead of use directly?
+           - Decouples the schema location from the dependency artifact
+           - Allows protoc to compile all .proto files in one pass
+           - Makes the build self-contained within the target/ directory
+           - Simplifies caching and incremental builds
+           
+           Phase: generate-sources ensures this runs before Java compilation. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.7.1</version>
+        <executions>
+          <execution>
+            <id>unpack-proto-schemas</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>unpack</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>pc.mvn.pkg</groupId>
+                  <artifactId>dto</artifactId>
+                  <version>${commons.version}</version>
+                  <type>jar</type>
+                  <outputDirectory>${project.build.directory}/proto</outputDirectory>
+                  <includes>**/*.proto</includes>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Step 2: Protobuf Maven Plugin - Generate Java code from .proto schema files.
+           
+           This plugin executes the protoc compiler to:
+           1. Read .proto files from target/proto (unpacked in step 1)
+           2. Generate corresponding Java classes with getters, builders, and serialization code
+           3. Place generated files in target/generated-sources/protobuf/java
+           
+           Key architecture decisions:
+           - We do NOT store .proto files in this service repo (no vendor lock-in)
+           - We DO pull schemas from the shared dto-proto dependency
+           - This enables schema versioning independent of service deployment
+           
+           The ${os.detected.classifier} ensures protoc binary matches the build machine's OS. -->
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>${protobuf.plugin.version}</version>
+        <configuration>
+          <!-- Download a matching protoc binary for the current OS and architecture.
+               Example values: win32, linux-x86_64, osx-x86_64, osx-aarch_64
+               This is generated by the os-maven-plugin and allows cross-platform builds. -->
+          <protocArtifact>
+            com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+
+          <!-- Source directory for .proto files (populated by the dependency-plugin in step 1).
+               This directory separation (not storing .proto in src/) is a key design pattern because:
+               - Service implementation code is separate from generated code
+               - Enables clean regeneration without manual file management
+               - Makes it clear which code is hand-written vs generated
+               - Supports multiple service versions using the same schema -->
+          <protoSourceRoot>${project.build.directory}/proto</protoSourceRoot>
+        </configuration>
+        <executions>
+          <execution>
+            <id>compile-protobuf</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>compile</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Step 2b: Build Helper Maven Plugin - Register generated sources with Maven and IDE.
+           
+           This plugin explicitly tells Maven (and IDEs like VS Code) that the protobuf-generated
+           sources should be treated as part of the project's source roots. This is crucial for:
+           - IDE code completion and error checking on generated classes
+           - Proper classpath configuration in Eclipse/VS Code
+           - Ensuring generated sources are included in source JAR artifacts
+           
+           Without this, IDEs may show false "cannot find symbol" errors for generated classes
+           even though the build succeeds. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <id>add-protobuf-sources</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.build.directory}/generated-sources/protobuf/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Step 3: Java Compiler Plugin - Compile hand-written and generated source code.
+           
+           This plugin compiles all Java sources into bytecode:
+           - Hand-written code from src/main/java/
+           - Auto-generated code from target/generated-sources/protobuf/java/
+           
+           Configuration:
+           - <release>${java.version}/>: Specifies Java 21 as target and source version.
+             The "release" option (introduced in Java 9) is preferred over separate
+             source/target because it ensures consistent cross-compilation and picks
+             the correct runtime library version automatically. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <release>${java.version}</release>
+          <compilerArgs>
+            <arg>-Xlint:all</arg>
+          </compilerArgs>
+          <generatedSourcesDirectory>${project.build.directory}/generated-sources/protobuf/java</generatedSourcesDirectory>
+        </configuration>
+      </plugin>
+
+      <!-- Step 4: JAR Plugin - Package compiled classes into an executable JAR artifact.
+           This plugin creates the final deliverable:
+           - Produces: order-service-1.0.0.jar
+           - Enables: java -jar target/order-service-1.0.0.jar
+           The <mainClass> configuration:
+           - Specifies the entry point for the executable JAR
+           - Added to the JAR's META-INF/MANIFEST.MF file
+           - Allows JVM to automatically find and execute the main() method
+           Without this configuration, you'd need: java -cp order-service-1.0.0.jar
+      pc.mvn.pkg.services.order.App -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>pc.mvn.pkg.services.order.App</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+
+      <!-- Maven Shade Plugin - Creates a fat JAR with all dependencies bundled.
+           
+           A fat JAR (or uber JAR) includes the main application code plus all
+           runtime dependencies, enabling simple deployment with: java -jar order-service-1.0.0.jar
+           
+           Why shade instead of assembly?
+           - Shading handles duplicate files and META-INF resources correctly
+           - Transformers can merge resource files (e.g., service loaders)
+           - Better support for complex dependency graphs
+           - Standard approach for executable JARs with dependencies
+           
+           This is preferred over assembly:goal:single for production deployments. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <transformers>
+                <!-- Preserve the main class in the shaded JAR manifest -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>pc.mvn.pkg.services.order.App</mainClass>
+                </transformer>
+              </transformers>
+              <!-- Create the fat JAR with this name instead of the default shaded naming -->
+              <finalName>order-service-${project.version}</finalName>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+    </plugins>
+  </build>
+
+  <!-- If you deploy the service too, configure distributionManagement similarly (CI typically
+  handles this). -->
+</project>

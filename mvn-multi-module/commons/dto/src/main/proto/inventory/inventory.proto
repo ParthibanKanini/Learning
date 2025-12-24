@@ -1,0 +1,11 @@
+syntax = "proto3";
+package pc.inventory;
+
+option java_package = "pc.mvn.pkg.inventory";
+option java_multiple_files = true;
+
+message StockReserved {
+  string reservation_id = 1;
+  string sku = 2;
+  int32 quantity = 3;
+}

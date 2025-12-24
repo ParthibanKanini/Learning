@@ -1,0 +1,168 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Parent POM reference: Inherits properties and plugin management from commons parent.
+       This allows the dto module to use the same dependency versions and tool versions
+       as other modules in the multi-module project without duplication. -->
+  <parent>
+    <groupId>pc.mvn.pkg</groupId>
+    <artifactId>commons</artifactId>
+    <version>0.0.1</version>
+  </parent>
+
+  <!-- This is a schema-only ("dto") artifact that publishes Protocol Buffer definitions.
+       
+       Key characteristics:
+       - packaging=jar: Despite being schema-only, Maven still packages it as a JAR
+       - Contains only .proto files (no compiled Java classes)
+       - Distributed and versioned independently from consuming services
+       - Multiple services can depend on this single schema artifact
+       - Schema changes can be versioned separately from service deployments
+       
+       Benefits of the schema-only pattern:
+       1. Single source of truth for dto/schemas
+       2. Enables independent evolution of services and schemas
+       3. Reduces coupling between service deployments
+       4. Simplifies collaboration on API definitions
+       5. Allows team coordination through versioned schema artifacts
+  -->
+  <artifactId>dto</artifactId>
+  <packaging>jar</packaging>
+
+  <build>
+    <!-- Option B: Publish ONLY `.proto` files inside this JAR artifact.
+         
+         This <resources> configuration ensures that:
+         1. All .proto files from src/main/proto are included in the JAR
+         2. No compiled Java files or other artifacts are included
+         3. Consuming services can unpack these .proto files and compile them locally
+         
+         Why include .proto files in the JAR?
+         - The JAR becomes a mechanism for distributing schema definitions
+         - Maven handles versioning and artifact storage
+         - Dependencies on this JAR automatically include its resources
+         - Downstream services can programmatically access the schema
+         
+         This is a non-standard use of JAR packaging (normally for compiled code),
+         but it's a practical pattern for schema distribution in microservice architectures.
+    -->
+    <resources>
+      <resource>
+        <!-- Source directory containing .proto files authored by the team -->
+        <directory>src/main/proto</directory>
+        <includes>
+          <!-- Only include Protocol Buffer schema files (exclude any other files) -->
+          <include>**/*.proto</include>
+        </includes>
+      </resource>
+    </resources>
+
+    <plugins>
+      <!-- JAR Plugin: Package .proto files into a distributable artifact.
+           
+           Configuration notes:
+           - No Java compilation occurs (this is a schema-only artifact)
+           - The JAR contains only .proto files and metadata
+           - manifestEntries add custom metadata to identify this as a schema artifact
+           
+           Custom manifest entry:
+           - -Type=protobuf-schemas: Marks this JAR as containing Protobuf schemas
+             This is informational (for tools and documentation) and helps identify
+             the purpose of the artifact at a glance. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <archive>
+            <!--The
+            <manifestEntries> section in the maven-jar-plugin allows you to add arbitrary key-value
+            pairs to the JAR's META-INF/MANIFEST.MF file-->
+            <manifestEntries>
+              <!-- Custom manifest entry to identify this artifact's purpose -->
+              <Commons-Type>dto protobuf-schemas</Commons-Type>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+
+    </plugins>
+  </build>
+
+  <!-- Profiles provide alternate build configurations for specific scenarios -->
+  <profiles>
+    <!-- Compatibility Profile: Validates that schema changes don't break consumers.
+         The <activation> section triggers this profile automatically when the
+         previousVersion property is provided, without needing -P compat flag.
+         Example usage:
+         mvn clean verify -DpreviousVersion=0.0.0
+         
+         This profile is useful when:
+         - You publish generated Java code (not just schemas)
+         - You want to ensure API backward compatibility across versions
+         - You're enforcing semantic versioning standards -->
+    <profile>
+      <id>compat</id>
+      <activation>
+        <!-- Activates automatically when root profile compat is used with -DpreviousVersion
+        provided -->
+        <property>
+          <name>previousVersion</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <!-- Compatibility Check via japicmp:
+               Detects binary and source incompatible changes between versions.
+               Activated only when:
+               1. Profile compat is invoked (-Pcompat flag)
+               2. -DpreviousVersion parameter is provided
+               For dto schema-only JARs, this check has limited impact (mostly checking
+               metadata changes), but it maintains the pattern for future versions
+               that might include generated code.
+          -->
+          <plugin>
+            <groupId>com.github.siom79.japicmp</groupId>
+            <artifactId>japicmp-maven-plugin</artifactId>
+            <version>${japicmp.version}</version>
+            <executions>
+              <execution>
+                <id>japicmp-compare</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>cmp</goal>
+                </goals>
+                <configuration>
+                  <!-- Retrieve old (baseline) version from Maven repository for comparison -->
+                  <oldVersion>
+                    <groupId>pc.mvn.pkg</groupId>
+                    <artifactId>dto-proto</artifactId>
+                    <version>${previousVersion}</version>
+                  </oldVersion>
+                  <!-- New version: the current build output in target/ directory -->
+                  <newVersion>
+                    <file>${project.build.directory}/${project.build.finalName}.jar</file>
+                  </newVersion>
+
+                  <!-- Break the build if binary-incompatible changes are detected.
+                       Binary incompatibility means consumers compiled against the old
+                       version would fail to run with the new version.
+                       
+                       Source compatibility is more lenient (code recompilation can fix it),
+                       so we don't break on source incompatibility here. -->
+                  <breakBuildOnBinaryIncompatibleModifications>true</breakBuildOnBinaryIncompatibleModifications>
+                  <breakBuildOnSourceIncompatibleModifications>false</breakBuildOnSourceIncompatibleModifications>
+                </configuration>
+              </execution>
+            </executions>
+            <!-- inherited=true ensures child modules inherit this plugin configuration -->
+            <inherited>true</inherited>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
+</project>

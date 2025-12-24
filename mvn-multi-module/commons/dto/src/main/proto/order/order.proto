@@ -1,0 +1,13 @@
+syntax = "proto3";
+package pc.order;
+
+import "common/money.proto";
+
+option java_package = "pc.mvn.pkg.order";
+option java_multiple_files = true;
+
+message OrderCreated {
+  string order_id = 1;
+  string customer_id = 2;
+  pc.common.Money total_amount = 3;
+}

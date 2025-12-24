@@ -1,0 +1,245 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- ============================================================================
+       PROJECT IDENTITY
+       Defines the root coordinates and metadata for the commons repository.
+       This is a parent POM (packaging=pom) that aggregates multiple sub-modules.
+       ============================================================================ -->
+  <groupId>pc.mvn.pkg</groupId>
+  <artifactId>commons</artifactId>
+  <version>0.0.1</version>
+  <packaging>pom</packaging>
+
+  <!-- ============================================================================
+       MODULE AGGREGATION
+       Lists all sub-modules that are part of this multi-module project.
+       Each module has its own pom.xml and will be built as part of the build.
+       - dto: Contains .proto (Protocol Buffer) definitions and generated Java classes
+       - bom: Bill of Materials for dependency management
+       ============================================================================ -->
+  <modules>
+    <module>dto</module>
+    <module>bom</module>
+  </modules>
+
+  <!-- ============================================================================
+       PROJECT PROPERTIES
+       Custom properties used throughout the build process. 
+       All sub-modules inherit these by default unless explicitly overridden.
+       - project.build.sourceEncoding: Ensures consistent file encoding (UTF-8)
+       - maven.enforcer.version: Version of maven-enforcer-plugin for build rules
+       - japicmp.version: Version of japicmp for Java API compatibility checks
+       ============================================================================ -->
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.enforcer.version>3.5.0</maven.enforcer.version>
+    <japicmp.version>0.23.1</japicmp.version>
+  </properties>
+
+  <!-- ============================================================================
+       DISTRIBUTION MANAGEMENT
+       Configures where artifacts (JAR files) are deployed after successful builds.
+       Replace the URLs with your organization's artifact repository (Nexus/Artifactory) endpoints.
+       
+       IMPORTANT: Server credentials (username/password) must be configured in:
+       ~/.m2/settings.xml with matching <server> IDs (company-releases, company-snapshots)
+       
+       - repository: Destination for release builds (stable versions)
+       - snapshotRepository: Destination for snapshot builds (development versions)
+       ============================================================================ -->
+  <distributionManagement>
+    <repository>
+      <id>company-releases</id>
+      <url>https://nexus.company.com/repository/maven-releases/</url>
+    </repository>
+    <snapshotRepository>
+      <id>company-snapshots</id>
+      <url>https://nexus.company.com/repository/maven-snapshots/</url>
+    </snapshotRepository>
+  </distributionManagement>
+
+  <!-- ============================================================================
+       BUILD CONFIGURATION
+       Centralizes plugin management (pluginManagement) for all child modules.
+       This section defines plugins and their default configurations that can be
+       inherited by sub-modules without specifying version numbers.
+       ============================================================================ -->
+  <build>
+    <!-- ========================================================================
+         PLUGIN MANAGEMENT
+         Declares plugins with versions and configurations for child modules.
+         Child modules inherit these definitions but must explicitly activate them.
+         This prevents version conflicts across the multi-module project.
+         ======================================================================== -->
+    <pluginManagement>
+      <plugins>
+        <!-- ====================================================================
+             MAVEN ENFORCER PLUGIN
+             
+             PURPOSE:
+             Enforces a set of rules during the Maven build lifecycle to ensure
+             consistency, quality, and compliance across the entire project.
+             Acts as a "gatekeeper" to prevent common build issues and ensure
+             reproducible builds across different machines and CI/CD pipelines.
+             
+             HOW IT WORKS:
+             1. The plugin executes at a specified Maven build phase (default: validate)
+             2. Evaluates configured rules against the current project state
+             3. Rules can check: Maven version, Java version, dependencies, etc.
+             4. If any rule fails, the build stops with an error message
+             5. Rules can be configured to warn (fail=false) or error out (fail=true)
+             
+             COMMON USE CASES:
+             - Prevent snapshot dependencies in release builds
+             - Ensure minimum Maven/Java versions for team consistency
+             - Enforce dependency convergence (prevent version conflicts)
+             - Require specific dependency versions (security, stability)
+             - Ban certain transitive dependencies (blacklist approach)
+             - Enforce POM structure standards
+             
+             EXAMPLE RULES (can be added in executions/execution/configuration):
+             - requireMavenVersion: Ensures specific Maven version is used
+             - requireJavaVersion: Enforces minimum Java version
+             - banDependencies: Blocks use of specific problematic libraries
+             - requirePluginVersions: Forces explicit plugin version specification
+             - dependencyConvergence: Prevents conflicting dependency versions
+             
+             BENEFITS:
+             - Catches build issues early, before they reach production
+             - Standardizes team development environment
+             - Improves build reproducibility across CI/CD and local machines
+             - Prevents accidental inclusion of incompatible dependencies
+             - Enforces security best practices
+             ==================================================================== -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <version>${maven.enforcer.version}</version>
+          <!-- 
+               Note: Rules are typically configured within executions/execution/configuration
+               This template provides the baseline plugin configuration.
+               To activate specific rules, add an <executions> section with <rules> elements.
+          -->
+        </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.11.0</version>
+          <configuration>
+            <release>21</release>
+          </configuration>
+        </plugin>
+
+      </plugins>
+    </pluginManagement>
+  </build>
+
+
+  <!-- ============================================================================
+       BUILD PROFILES
+       Provides different build configurations for various scenarios.
+       Profiles are activated conditionally and override/extend the default build.
+       Usage: mvn clean verify -P compat
+       ============================================================================ -->
+  <profiles>
+    <!-- ========================================================================
+         COMPATIBILITY CHECK PROFILE (compat)
+         Validates backward compatibility of the current version against a
+         previous release version using the japicmp plugin.
+         
+         This profile uses japicmp to detect Java API changes and ensure that
+         no breaking changes have been introduced.
+         
+         Requirements: previousVersion property must be provided at build time
+         The compat profile will never be executed during the default lifecycle of a build.
+         Profiles must be explicitly activated. To run the compat profile, you must use the -P flag:
+         mvn clean verify -P compat -DpreviousVersion=0.0.3
+         ======================================================================== -->
+    <profile>
+      <id>compat</id>
+      <build>
+        <plugins>
+          <!-- ================================================================
+               JAPICMP MAVEN PLUGIN
+               
+               PURPOSE:
+               Performs Java API Compatibility Checking to detect breaking changes
+               between the current version and a previous baseline version.
+               Essential for maintaining backward compatibility in libraries and
+               shared components that other modules depend upon.
+               
+               HOW IT WORKS:
+               1. Plugin retrieves the old (baseline) version from the repository
+               2. Compares the Java bytecode of old vs current JAR files
+               3. Analyzes changes in: class signatures, method signatures,
+                  field definitions, accessibility modifiers, return types, etc.
+               4. Generates a detailed report of all API differences found
+               5. Can fail the build if breaking changes are detected or previous versions is
+          not found.
+               
+               WHAT IT DETECTS (Breaking Changes):
+               - Removed public classes or interfaces
+               - Removed public/protected methods
+               - Modified method signatures (parameter types, return types)
+               - Changed method accessibility (public to private, etc.)
+               - Added abstract methods to concrete classes
+               - Changed class hierarchy (extends/implements relationships)
+               - Removed or changed public fields
+               - Modified final/static/abstract modifiers
+               
+               COMMON USE CASES:
+               - Library authors ensuring semantic versioning compliance
+               - Preventing accidental breaking API changes in releases
+               - Validating compatibility before major/minor/patch versions
+               - Detecting transitive breaking changes in dependencies
+               - Enforcing backward compatibility standards in organization
+               
+               BENEFITS:
+               - Protects downstream consumers from compatibility issues
+               - Catches breaking changes during build (not in production)
+               - Documents API evolution over versions
+               - Enforces semantic versioning practices
+               - Prevents regression in API compatibility
+               - Provides detailed compatibility reports
+               
+               PROFILE-SPECIFIC ACTIVATION:
+               - This plugin is in the "compat" profile (activated with -P compat)
+               - Not run by default in standard builds
+               - Prevents build slowdown during regular development
+               - Only invoked when compatibility check is explicitly desired
+               
+               CONFIGURATION DETAILS:
+               - oldVersion: The baseline version to compare against
+               - phase: verify - Runs during verify phase before packaging
+               - goal: cmp - Performs the API compatibility comparison
+               - previousVersion: External property that must be provided at build time
+                 Example: mvn clean verify -P compat -DpreviousVersion=0.0.0
+               ================================================================ -->
+          <plugin>
+            <groupId>com.github.siom79.japicmp</groupId>
+            <artifactId>japicmp-maven-plugin</artifactId>
+            <version>${japicmp.version}</version>
+            <configuration>
+              <oldVersion>
+                <version>${previousVersion}</version>
+              </oldVersion>
+            </configuration>
+            <executions>
+              <execution>
+                <phase>verify</phase>
+                <goals>
+                  <goal>cmp</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
+</project>

@@ -1,0 +1,37 @@
+{
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "maven.executable.preferMavenFromPath": true,
+    "maven.projects": [
+        "commons",
+        "order-service"
+    ],
+    "files.exclude": {
+        "**/target": true,
+        "**/generated-sources": true,
+        "**/generated-test-sources": true
+    },
+    "files.watcherExclude": {
+        "**/target": true,
+        "**/generated-sources": true,
+        "**/generated-test-sources": true
+    },
+    "search.exclude": {
+        "**/target": true,
+        "**/generated-sources": true,
+        "**/generated-test-sources": true
+    },
+    "java.import.exclusions": [
+        "**/target/**",
+        "**/generated-sources/**",
+        "**/generated-test-sources/**"
+    ],
+    "[java]": {
+        "editor.defaultFormatter": "redhat.java"
+    },
+    "java.saveActions.organizeImports": true,
+    "redhat.telemetry.enabled": false,
+    "extensions.ignoreRecommendations": false,
+    "maven.pomfile.globPattern": "**/pom.xml",
+    "java.eclipse.downloadSources": false,
+    "java.maven.downloadSources": false
+}

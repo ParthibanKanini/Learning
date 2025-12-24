@@ -1,0 +1,12 @@
+syntax = "proto3";
+package pc.common;
+
+// These options control the generated Java package if/when consumers generate code.
+option java_package = "pc.mvn.pkg.common";
+option java_multiple_files = true;
+
+message Money {
+  string currency = 1; // e.g. "INR", "USD"
+  int64 units = 2;     // whole units
+  int32 nanos = 3;     // fractional in nanos
+}

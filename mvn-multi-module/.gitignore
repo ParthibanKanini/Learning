@@ -1,0 +1,52 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+pom.xml.bak
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+**/dependency-reduced-pom
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+*~
+
+
+# Build and compilation
+bin/
+out/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+
+# Environment
+.env
+.env.local
+*.properties.local
+*.log
+
+# Test coverage
+coverage/
+*.coverage
+
+# Node (if used in frontend)
+node_modules/
+dist/
+.npm/
+
+# OS-specific
+.DS_Store
+Thumbs.db

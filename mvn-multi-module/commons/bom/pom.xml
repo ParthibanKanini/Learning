@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <!-- ======================================================================
+       Parent POM Reference
+       Inherits groupId, version, and other shared configuration from parent
+       ====================================================================== -->
+  <parent>
+    <groupId>pc.mvn.pkg</groupId>
+    <artifactId>commons</artifactId>
+    <version>0.0.1</version>
+  </parent>
+  <!-- ======================================================================
+       Bill of Materials (BOM) Module
+       
+       Purpose: Centralizes dependency version management for all consumers
+       of the commons artifacts. Projects that depend on this BOM
+       can use <scope>import</scope> to inherit version constraints without
+       manually specifying versions in their own pom.xml files.
+       
+       Packaging: pom (not a JAR/WAR, just configuration)
+       ====================================================================== -->
+  <artifactId>bom</artifactId>
+  <packaging>pom</packaging>
+  <!-- ======================================================================
+       Dependency Management
+       
+       Defines versions for all transitive dependencies related to the
+       commons. Consumers that import this BOM get these
+       version constraints automatically.
+       
+       Benefits:
+       - Single source of truth for dependency versions
+       - Prevents version conflicts across microservices
+       - Reduces duplication in consumer pom.xml files
+       ====================================================================== -->
+  <dependencyManagement>
+    <dependencies>
+      <!-- The generated DTO/Protobuf Java classes JAR
+           Contains all compiled .proto files and their generated Java sources.
+           Services import this to get the data transfer objects. -->
+      <dependency>
+        <groupId>pc.mvn.pkg</groupId>
+        <artifactId>dto-proto</artifactId>
+        <version>${project.version}</version>
+        <type>jar</type>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>
