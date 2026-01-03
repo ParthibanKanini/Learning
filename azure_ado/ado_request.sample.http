@@ -1,0 +1,37 @@
+
+
+### Get Team Iterations
+@organization = orgname
+@project = proj-name
+@team = A Team
+
+@base_uri = https://dev.azure.com/{{organization}}/
+@proj_uri = {{base_uri}}{{project}}/
+@team_uri={{proj_uri}}/{{team}}/
+@pat_token=pat-tkn=abc123xyz
+
+
+### Get Team Iteration Details
+GET {{team_uri}}/_apis/work/teamsettings/iterations?api-version=7.1
+Authorization: Basic :{{pat_token}}
+Accept: application/json
+
+#### 
+
+
+### Get Iteration Capacities
+GET {{team_uri}}/_apis/work/teamsettings/iterations/fd8ad8ec-52a4-41f9-beab-6443ccb624de/capacities?api-version=7.1
+Authorization: Basic :{{pat_token}}
+Accept: application/json
+
+####
+
+
+
+### Get Current Iteration Details
+GET {{team_uri}}/_apis/work/teamsettings/iterations?$timeframe=current&api-version=7.1
+Authorization: Basic :{{pat_token}}
+Accept: application/json
+
+####
+
