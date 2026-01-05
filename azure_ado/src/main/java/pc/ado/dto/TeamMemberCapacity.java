@@ -1,4 +1,4 @@
-package pc.ado;
+package pc.ado.dto;
 
 /**
  * Data Transfer Object for team member capacity information.

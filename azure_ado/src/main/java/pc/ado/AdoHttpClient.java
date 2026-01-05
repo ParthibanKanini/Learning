@@ -6,11 +6,21 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Base64;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Handles HTTP communication with Azure DevOps API. Encapsulates authentication
  * and request/response handling.
  */
 public class AdoHttpClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(AdoHttpClient.class);
+    private static final String AUTHORIZATION_HEADER = "Authorization";
+    private static final String BASIC_AUTH_PREFIX = "Basic ";
+    private static final String ACCEPT_HEADER = "Accept";
+    private static final String APPLICATION_JSON = "application/json";
+    private static final int HTTP_OK = 200;
 
     private final HttpClient httpClient;
     private final String encodedCredentials;
@@ -36,19 +46,23 @@ public class AdoHttpClient {
      * @throws Exception if the request fails
      */
     public String get(String url) throws Exception {
+        logger.debug("Sending GET request to: {}", url);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("Authorization", "Basic " + encodedCredentials)
-                .header("Accept", "application/json")
+                .header(AUTHORIZATION_HEADER, BASIC_AUTH_PREFIX + encodedCredentials)
+                .header(ACCEPT_HEADER, APPLICATION_JSON)
                 .GET()
                 .build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() != 200) {
-            throw new Exception("API request failed with status code: " + response.statusCode());
+        if (response.statusCode() != HTTP_OK) {
+            String errorMsg = "API request failed with status code: " + response.statusCode();
+            logger.error(errorMsg);
+            throw new Exception(errorMsg);
         }
 
+        logger.debug("API request successful");
         return response.body();
     }
 
@@ -56,6 +70,7 @@ public class AdoHttpClient {
      * Closes the HTTP client and releases resources.
      */
     public void close() {
-        // HttpClient doesn't need explicit closure, but this method provides cleanup capability
+        logger.debug("Closing HTTP client");
+        // HttpClient doesn't require explicit closure but this method provides cleanup capability
     }
 }

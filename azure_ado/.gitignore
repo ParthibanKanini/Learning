@@ -1,7 +1,8 @@
 # Configuration files with sensitive data
 src/main/resources/config.properties
 ado_request.http
-
+output.txt
+/logs/*
 # Maven build artifacts
 target/
 *.jar

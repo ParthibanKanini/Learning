@@ -2,6 +2,11 @@ package pc.ado;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import pc.ado.dto.Iteration;
+
 /**
  * Main entry point for Azure DevOps reporting tool.
  *
@@ -10,6 +15,8 @@ import java.util.List;
  * configuration, HTTP communication, API interaction, and presentation.
  */
 public class AdoTool {
+
+    private static final Logger logger = LoggerFactory.getLogger(AdoTool.class);
 
     public static void main(String[] args) {
         AdoTool tool = new AdoTool();
@@ -20,25 +27,24 @@ public class AdoTool {
      * Runs the Azure DevOps reporting workflow.
      */
     public void run() {
-        AdoConfig config = AdoConfig.getInstance();
-        AdoHttpClient httpClient = new AdoHttpClient(config.getPatToken());
-
         try {
-            AdoApiClient apiClient = new AdoApiClient(httpClient, config);
-            AdoReportFormatter formatter = new AdoReportFormatter();
-
-            // Display team header
-            formatter.displayTeamHeader(config.getTeam());
-
-            // Retrieve and display all team iterations with their capacities
-            List<Iteration> iterations = apiClient.getTeamIterations();
-            formatter.displayTeamIterations(iterations, apiClient);
-
+            AdoConfig config = AdoConfig.getInstance();
+            AdoHttpClient httpClient = new AdoHttpClient(config.getPatToken());
+            try {
+                AdoApiClient apiClient = new AdoApiClient(httpClient, config);
+                AdoReportFormatter formatter = new AdoReportFormatter(config);
+                // Display team header
+                formatter.displayTeamHeader(config.getTeam());
+                // Retrieve and display all team iterations with their capacities
+                List<Iteration> iterations = apiClient.getTeamIterations();
+                formatter.displayTeamIterations(iterations, apiClient);
+                logger.info("Report generation completed successfully");
+            } finally {
+                httpClient.close();
+            }
         } catch (Exception e) {
-            System.err.println("Error occurred: " + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            httpClient.close();
+            logger.error("Error occurred during report generation", e);
+            System.exit(1);
         }
     }
 }
