@@ -1,11 +1,15 @@
 package pc.ado;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import pc.ado.dto.Iteration;
+import pc.ado.dto.TeamMemberCapacity;
 
 /**
  * Main entry point for Azure DevOps reporting tool.
@@ -17,6 +21,8 @@ import pc.ado.dto.Iteration;
 public class AdoTool {
 
     private static final Logger logger = LoggerFactory.getLogger(AdoTool.class);
+
+    private static final String TAB = "\t";
 
     public static void main(String[] args) {
         AdoTool tool = new AdoTool();
@@ -33,12 +39,16 @@ public class AdoTool {
             try {
                 AdoApiClient apiClient = new AdoApiClient(httpClient, config);
                 AdoReportFormatter formatter = new AdoReportFormatter(config);
-                // Display team header
-                formatter.displayTeamHeader(config.getTeam());
+                final String project = config.getProject();
+                final String team = config.getTeam();
+                formatter.logTeamName(project, team);
                 // Retrieve and display all team iterations with their capacities
-                List<Iteration> iterations = apiClient.getTeamIterations();
-                formatter.displayTeamIterations(iterations, apiClient);
-                logger.info("Report generation completed successfully");
+                List<Iteration> iterations = apiClient.getTeamSprint(project, team);
+                // Retrieve iteration details 
+                List<String> itrDetails = collectTeamSprintDetails(project, team, iterations, apiClient);
+                // Write details to file
+                formatter.writeSprintCapacitiesToFile(itrDetails);
+                logger.info("Report generation completed successfully.");
             } finally {
                 httpClient.close();
             }
@@ -47,4 +57,100 @@ public class AdoTool {
             System.exit(1);
         }
     }
+
+    /**
+     * Collects team iterations and their details, then writes them to file.
+     */
+    public List<String> collectTeamSprintDetails(String project, String team, List<Iteration> iterations, AdoApiClient apiClient) {
+        List<String> allDetails = new java.util.ArrayList<>();
+        // Add header on first iteration
+        allDetails.add("Project" + TAB + "Team Name" + TAB + "Iteration Name" + TAB + "Start Date" + TAB + "Finish Date" + TAB + "Team Member" + TAB + "Capacity(Hrs) Per Day" + TAB + "PTO + Holidays" + TAB + "worked Days" + TAB + "worked(accounted) hrs");
+        for (Iteration iteration : iterations) {
+            allDetails.addAll(getSprintCapacityDetails(project, team, iteration, apiClient));
+        }
+        return allDetails;
+    }
+
+    /**
+     * Retrieves formatted team members with capacity for a specific iteration.
+     */
+    private List<String> getSprintCapacityDetails(String project, String team, Iteration iteration, AdoApiClient apiClient) {
+        List<String> details = new java.util.ArrayList<>();
+        try {
+            logger.debug("Fetching capacities for iteration '{}'", iteration.getName());
+            List<TeamMemberCapacity> capacities = apiClient.getIterationCapacities(project, team, iteration.getId());
+            logger.debug("Retrieved {} team members for iteration", capacities.size());
+            //logger.trace("---" + iteration.getName() + " - " + iteration.getStartDate() + " - " + iteration.getFinishDate() + "---");
+            String itrDetails = getSprintDetails(project, team, iteration);
+            for (TeamMemberCapacity capacity : capacities) {
+                StringBuilder sb = new StringBuilder(itrDetails);
+                sb.append(capacity.getDisplayName());
+                sb.append(TAB);
+                sb.append(capacity.getCapacityPerDay());
+                sb.append(TAB);
+                sb.append(capacity.getDaysOff());
+                sb.append(TAB);
+                int workedDays = calculateWorkDays(iteration.getStartDate(), iteration.getFinishDate(), capacity.getDaysOff());
+                sb.append(workedDays);
+                sb.append(TAB);
+                sb.append(workedDays * capacity.getCapacityPerDay());
+                details.add(sb.toString());
+            }
+        } catch (Exception e) {
+            logger.error("Error occurred while fetching sprint capacities: {}", iteration.getName(), e);
+        }
+        return details;
+    }
+
+    /**
+     * Returns sprint details as a formatted string.
+     */
+    private String getSprintDetails(String project, String team, Iteration iteration) {
+        StringBuilder sb = new StringBuilder(project);
+        sb.append(TAB);
+        sb.append(team);
+        sb.append(TAB);
+        sb.append(iteration.getName());
+        sb.append(TAB);
+        sb.append(iteration.getStartDate());
+        sb.append(TAB);
+        sb.append(iteration.getFinishDate());
+        sb.append(TAB);
+        return sb.toString();
+    }
+
+    /**
+     * Calculates work days between two dates, excluding holidays.
+     *
+     * @param startDate dd-MMM-yyyy
+     * @param finishDate dd-MMM-yyyy
+     * @param holidays number of holidays
+     * @return
+     */
+    private int calculateWorkDays(String startDate, String finishDate, int holidays) {
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
+            LocalDate start = LocalDate.parse(startDate, formatter);
+            LocalDate finish = LocalDate.parse(finishDate, formatter);
+            // +1 to include both start and end dates
+            long totalDays = ChronoUnit.DAYS.between(start, finish) + 1;
+            // Calculate weekend days
+            int weekendDays = 0;
+            LocalDate current = start;
+            while (!current.isAfter(finish)) {
+                int dayOfWeek = current.getDayOfWeek().getValue();
+                if (dayOfWeek == 6 || dayOfWeek == 7) {
+                    //Sum the weekends. Saturday = 6, Sunday = 7
+                    weekendDays++;
+                }
+                current = current.plusDays(1);
+            }
+            int workedDays = (int) totalDays - weekendDays - holidays;
+            return Math.max(0, workedDays); // Return at least 0
+        } catch (Exception e) {
+            logger.error("Failed to calculate work days from {} to {}", startDate, finishDate, e);
+            return 0;
+        }
+    }
+
 }

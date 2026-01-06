@@ -62,7 +62,7 @@ public class AdoHttpClient {
             throw new Exception(errorMsg);
         }
 
-        logger.debug("API request successful");
+        logger.trace("API request successful");
         return response.body();
     }
 

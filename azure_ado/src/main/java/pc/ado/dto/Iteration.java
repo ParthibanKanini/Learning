@@ -5,12 +5,14 @@ package pc.ado.dto;
  */
 public class Iteration {
 
+    private final String projName;
     private final String id;
     private final String name;
     private final String startDate;
     private final String finishDate;
 
-    public Iteration(String id, String name, String startDate, String finishDate) {
+    public Iteration(String projName, String id, String name, String startDate, String finishDate) {
+        this.projName = projName;
         this.id = id;
         this.name = name;
         this.startDate = startDate;
@@ -32,4 +34,9 @@ public class Iteration {
     public String getFinishDate() {
         return finishDate;
     }
+
+    public String getProjName() {
+        return projName;
+    }
+
 }

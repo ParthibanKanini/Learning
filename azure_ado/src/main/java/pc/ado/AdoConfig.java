@@ -33,7 +33,7 @@ public class AdoConfig {
                 throw new IOException("config.properties file not found in resources");
             }
             props.load(input);
-            logger.info("Configuration loaded successfully");
+            logger.debug("Configuration loaded successfully");
         } catch (IOException e) {
             logger.error("Error loading configuration", e);
             throw new RuntimeException("Failed to load configuration: " + e.getMessage(), e);
@@ -50,7 +50,7 @@ public class AdoConfig {
                 throw new RuntimeException(error);
             }
         }
-        logger.info("Configuration validation passed");
+        logger.debug("Configuration validation passed");
     }
 
     public String getTeam() {
@@ -81,11 +81,15 @@ public class AdoConfig {
         return config.getProperty("iterationsApiPath");
     }
 
-    public String getCapacitiesApiPath() {
-        return config.getProperty("capacitiesApiPath");
+    public String getIterationDayOffPath() {
+        return config.getProperty("iterationDayOffPath");
     }
 
     public String getOutputFilePath() {
         return config.getProperty("outputFilePath", "output.txt");
+    }
+
+    public String getCapacitiesApiPath() {
+        return config.getProperty("capacitiesApiPath");
     }
 }
