@@ -2,8 +2,6 @@ package pc.ado;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,17 +59,6 @@ public class AdoApiClient {
         }
     }
 
-    private String formatDate(String date) {
-        try {
-            LocalDateTime dateTime = LocalDateTime.parse(date, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
-            return dateTime.format(formatter);
-        } catch (Exception e) {
-            logger.warn("Failed to format date: {}", date, e);
-            return date;
-        }
-    }
-
     /**
      * Retrieves team member capacities for a specific iteration.
      *
@@ -89,7 +76,17 @@ public class AdoApiClient {
             String response = httpClient.get(url);
             //logger.trace("Iteration Day Off response: {}", response);
             JSONObject jsonResponse = new JSONObject(response);
-            int teamHolidays = jsonResponse.getJSONArray("daysOff").length();
+
+            int teamHolidays = 0;
+            JSONArray teamDaysOff = jsonResponse.getJSONArray("daysOff");
+            for (int i = 0; i < teamDaysOff.length(); i++) {
+                JSONObject dayOff = teamDaysOff.getJSONObject(i);
+                String startDate = dayOff.getString("start");
+                String endDate = dayOff.getString("end");
+                int weekDayHoliday = DateUtils.calculateWeekDays(DateUtils.formatISODateToLocalDate(startDate), DateUtils.formatISODateToLocalDate(endDate));
+                //logger.debug("Team Day Off from {} to {} : {} days", startDate, endDate, days);
+                teamHolidays += weekDayHoliday;
+            }
             logger.trace("teamHolidays: {} - {}", teamHolidays, jsonResponse.toString());
 
             // Team members details
@@ -127,9 +124,9 @@ public class AdoApiClient {
             JSONObject attributes = iterationJson.optJSONObject("attributes");
             if (attributes != null) {
                 startDate = attributes.optString("startDate", "N/A");
-                startDate = !(startDate.equals("N/A")) ? formatDate(startDate) : "N/A";
+                startDate = !(startDate.equals("N/A")) ? DateUtils.formatISODate(startDate) : "N/A";
                 finishDate = attributes.optString("finishDate", "N/A");
-                finishDate = !(finishDate.equals("N/A")) ? formatDate(finishDate) : "N/A";
+                finishDate = !(finishDate.equals("N/A")) ? DateUtils.formatISODate(finishDate) : "N/A";
                 logger.debug("Parsed iteration : {} ({} to {})", name, startDate, finishDate);
             }
         } catch (Exception e) {
@@ -147,13 +144,25 @@ public class AdoApiClient {
             JSONObject teamMember = teamMemberJson.getJSONObject("teamMember");
             String displayName = teamMember.getString("displayName");
             JSONArray activities = teamMemberJson.getJSONArray("activities");
+
+            int teamMemberPTO = 0;
+            // Iterate daysoff array and extract start and end date to calculate total holidays using daysbetween function
             JSONArray teamMemberSprintdaysOff = teamMemberJson.getJSONArray("daysOff");
+            for (int i = 0; i < teamMemberSprintdaysOff.length(); i++) {
+                JSONObject dayOff = teamMemberSprintdaysOff.getJSONObject(i);
+                String startDate = dayOff.getString("start");
+                String endDate = dayOff.getString("end");
+                teamMemberPTO += DateUtils.calculateWeekDays(DateUtils.formatISODateToLocalDate(startDate), DateUtils.formatISODateToLocalDate(endDate));
+                logger.debug("Team Member '{}' Day Off from {} to {} = {} days.", displayName, startDate, endDate, teamMemberPTO);
+            }
+
             for (int i = 0; i < activities.length(); i++) {
                 JSONObject activity = activities.getJSONObject(i);
                 double capacityPerDay = activity.optDouble("capacityPerDay", 0);
                 if (capacityPerDay > 0) {
-                    logger.trace("'{}' had PTO {} days & Team Holiday {} days.", displayName, teamMemberSprintdaysOff.length(), teamHolidays);
-                    return new TeamMemberCapacity(displayName, capacityPerDay, teamMemberSprintdaysOff.length() + teamHolidays);
+                    //todo: dont use teamMemberSprintdaysoff length directly, consider start and end date
+                    logger.trace("'{}' had PTO {} days & Team Holiday {} days.", displayName, teamMemberPTO, teamHolidays);
+                    return new TeamMemberCapacity(displayName, capacityPerDay, teamMemberPTO + teamHolidays);
                 }
             }
         } catch (JSONException e) {
@@ -167,7 +176,9 @@ public class AdoApiClient {
      */
     private String buildTeamUri(String project, String team) throws Exception {
         String baseUri = config.getBaseUri() + config.getOrganization() + "/";
-        String projUri = baseUri + project + "/";
+        String projectName = URLEncoder.encode(project, StandardCharsets.UTF_8.toString())
+                .replaceAll(PLUS_SIGN, SPACE_ENCODED);
+        String projUri = baseUri + projectName + "/";
         String teamName = URLEncoder.encode(team, StandardCharsets.UTF_8.toString())
                 .replaceAll(PLUS_SIGN, SPACE_ENCODED);
         return projUri + teamName + "/";

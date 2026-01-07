@@ -1,8 +1,5 @@
 package pc.ado;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -66,7 +63,9 @@ public class AdoTool {
         // Add header on first iteration
         allDetails.add("Project" + TAB + "Team Name" + TAB + "Iteration Name" + TAB + "Start Date" + TAB + "Finish Date" + TAB + "Team Member" + TAB + "Capacity(Hrs) Per Day" + TAB + "PTO + Holidays" + TAB + "worked Days" + TAB + "worked(accounted) hrs");
         for (Iteration iteration : iterations) {
+            //if (iteration.getName().equals("ESG Rel 6.1 Sprint 1")) {
             allDetails.addAll(getSprintCapacityDetails(project, team, iteration, apiClient));
+            //}
         }
         return allDetails;
     }
@@ -90,7 +89,7 @@ public class AdoTool {
                 sb.append(TAB);
                 sb.append(capacity.getDaysOff());
                 sb.append(TAB);
-                int workedDays = calculateWorkDays(iteration.getStartDate(), iteration.getFinishDate(), capacity.getDaysOff());
+                int workedDays = DateUtils.calculateWeekDays(DateUtils.formatStringToLocalDate(iteration.getStartDate()), DateUtils.formatStringToLocalDate(iteration.getFinishDate()), capacity.getDaysOff());
                 sb.append(workedDays);
                 sb.append(TAB);
                 sb.append(workedDays * capacity.getCapacityPerDay());
@@ -117,40 +116,6 @@ public class AdoTool {
         sb.append(iteration.getFinishDate());
         sb.append(TAB);
         return sb.toString();
-    }
-
-    /**
-     * Calculates work days between two dates, excluding holidays.
-     *
-     * @param startDate dd-MMM-yyyy
-     * @param finishDate dd-MMM-yyyy
-     * @param holidays number of holidays
-     * @return
-     */
-    private int calculateWorkDays(String startDate, String finishDate, int holidays) {
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MMM-yyyy");
-            LocalDate start = LocalDate.parse(startDate, formatter);
-            LocalDate finish = LocalDate.parse(finishDate, formatter);
-            // +1 to include both start and end dates
-            long totalDays = ChronoUnit.DAYS.between(start, finish) + 1;
-            // Calculate weekend days
-            int weekendDays = 0;
-            LocalDate current = start;
-            while (!current.isAfter(finish)) {
-                int dayOfWeek = current.getDayOfWeek().getValue();
-                if (dayOfWeek == 6 || dayOfWeek == 7) {
-                    //Sum the weekends. Saturday = 6, Sunday = 7
-                    weekendDays++;
-                }
-                current = current.plusDays(1);
-            }
-            int workedDays = (int) totalDays - weekendDays - holidays;
-            return Math.max(0, workedDays); // Return at least 0
-        } catch (Exception e) {
-            logger.error("Failed to calculate work days from {} to {}", startDate, finishDate, e);
-            return 0;
-        }
     }
 
 }
