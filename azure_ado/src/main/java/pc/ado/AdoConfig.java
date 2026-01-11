@@ -85,11 +85,28 @@ public class AdoConfig {
         return config.getProperty("iterationDayOffPath");
     }
 
-    public String getOutputFilePath() {
-        return config.getProperty("outputFilePath", "output.txt");
+    public String getSprintCapacityDetailsFilePath() {
+        return config.getProperty("sprintCapacityDetailsFilePath");
     }
 
     public String getCapacitiesApiPath() {
         return config.getProperty("capacitiesApiPath");
     }
+
+    public String getWorkItemsApiPath() {
+        return config.getProperty("workitemsApiPath");
+    }
+
+    public String getWorkItemRelationsApiPath() {
+        return config.getProperty("workItemRelationsAPIPath");
+    }
+
+    public String getPullRequestApiPath() {
+        return config.getProperty("pullRequestApiPath");
+    }
+
+    public String getPRThreadApiPath() {
+        return config.getProperty("PRThreadApiPath");
+    }
+
 }

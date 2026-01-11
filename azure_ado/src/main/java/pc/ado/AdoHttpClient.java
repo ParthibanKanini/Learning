@@ -46,7 +46,7 @@ public class AdoHttpClient {
      * @throws Exception if the request fails
      */
     public String get(String url) throws Exception {
-        logger.debug("Sending GET request to: {}", url);
+        logger.trace("Sending GET request to: {}", url);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header(AUTHORIZATION_HEADER, BASIC_AUTH_PREFIX + encodedCredentials)

@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import pc.ado.dto.Iteration;
+import pc.ado.dto.TeamMemberAllocation;
 import pc.ado.dto.TeamMemberCapacity;
 
 /**
@@ -19,8 +20,7 @@ public class AdoTool {
 
     private static final Logger logger = LoggerFactory.getLogger(AdoTool.class);
 
-    private static final String TAB = "\t";
-
+    //private static final String TAB = "\t";
     public static void main(String[] args) {
         AdoTool tool = new AdoTool();
         tool.run();
@@ -30,92 +30,104 @@ public class AdoTool {
      * Runs the Azure DevOps reporting workflow.
      */
     public void run() {
+        AdoConfig config = AdoConfig.getInstance();
+        AdoHttpClient httpClient = new AdoHttpClient(config.getPatToken());
         try {
-            AdoConfig config = AdoConfig.getInstance();
-            AdoHttpClient httpClient = new AdoHttpClient(config.getPatToken());
-            try {
-                AdoApiClient apiClient = new AdoApiClient(httpClient, config);
-                AdoReportFormatter formatter = new AdoReportFormatter(config);
-                final String project = config.getProject();
-                final String team = config.getTeam();
-                formatter.logTeamName(project, team);
-                // Retrieve and display all team iterations with their capacities
-                List<Iteration> iterations = apiClient.getTeamSprint(project, team);
-                // Retrieve iteration details 
-                List<String> itrDetails = collectTeamSprintDetails(project, team, iterations, apiClient);
-                // Write details to file
-                formatter.writeSprintCapacitiesToFile(itrDetails);
-                logger.info("Report generation completed successfully.");
-            } finally {
-                httpClient.close();
-            }
+            AdoApiClient apiClient = new AdoApiClient(config, httpClient);
+            List<Iteration> projectTeamItr = getTeamSprints(config.getProject(), config.getTeam(), apiClient);
+            populateTeamCapacitiesForIterations(config.getProject(), config.getTeam(), apiClient, projectTeamItr);
+
+            //TODO: For testing, extract details for a specific sprint. make it null later.
+            String sprintName = null;
+            populateIterationWorkItemDetails(config, apiClient, projectTeamItr, sprintName);
+
+            // Write details to file as JSON
+            logger.info("Generating report for project '{}' and team '{} - {}'", config.getProject(), config.getTeam(), projectTeamItr);
+            AdoReportFormatter formatter = new AdoReportFormatter(config);
+            formatter.writeSprintCapacitiesToJsonFile(projectTeamItr);
+            logger.info("Report generation completed successfully.");
+
         } catch (Exception e) {
             logger.error("Error occurred during report generation", e);
             System.exit(1);
+        } finally {
+            httpClient.close();
         }
     }
 
-    /**
-     * Collects team iterations and their details, then writes them to file.
-     */
-    public List<String> collectTeamSprintDetails(String project, String team, List<Iteration> iterations, AdoApiClient apiClient) {
-        List<String> allDetails = new java.util.ArrayList<>();
-        // Add header on first iteration
-        allDetails.add("Project" + TAB + "Team Name" + TAB + "Iteration Name" + TAB + "Start Date" + TAB + "Finish Date" + TAB + "Team Member" + TAB + "Capacity(Hrs) Per Day" + TAB + "PTO + Holidays" + TAB + "worked Days" + TAB + "worked(accounted) hrs");
+    private void populateIterationWorkItemDetails(AdoConfig config, AdoApiClient apiClient, List<Iteration> iterations, String sprintName) throws Exception {
+        final String project = config.getProject();
+        final String team = config.getTeam();
+        //List<Iteration> iterations = apiClient.getTeamSprint(project, team);
         for (Iteration iteration : iterations) {
-            //if (iteration.getName().equals("ESG Rel 6.1 Sprint 1")) {
-            allDetails.addAll(getSprintCapacityDetails(project, team, iteration, apiClient));
-            //}
+            // If no print name provided or a specific sprint name is given, process it
+            if (sprintName == null || iteration.getName().equals(sprintName)) {
+                logger.debug("Fetching story report for sprint: {} -> {} -> {}", project, team, sprintName);
+                // Retrieve and process work items for the specified sprint
+                //final String itrId = iteration.getId();
+                apiClient.getSprintWorkItems(project, team, iteration);
+            }
         }
-        return allDetails;
+        /* TODO: Fetch the below details for each work item
+                Impl details present(Y/N) - fields.(Custom.ImplementationDetails)
+                Dependancy
+                    successorOf []
+                    predecessorOf []
+                tasks []
+                    ID
+                    remaining hrs
+                    actual hrs
+                    assigned to
+                    Dependancy
+                        successorOf []
+                        predecessorOf []               */
+        logger.info("Story report generation completed successfully.");
+    }
+
+    /**
+     * Retrieves all team sprints for a given project and team.
+     */
+    private List<Iteration> getTeamSprints(String project, String team, AdoApiClient apiClient) throws Exception {
+        logger.debug("Retrieving team sprints for project '{}' and team '{}'", project, team);
+        List<Iteration> iterations = apiClient.getTeamSprint(project, team);
+        logger.debug("Retrieved {} sprints", iterations.size());
+        return iterations;
+    }
+
+    /**
+     * Processes team sprints to retrieve their capacity details.
+     */
+    private void populateTeamCapacitiesForIterations(String project, String team, AdoApiClient apiClient, List<Iteration> iterations) {
+        for (Iteration iteration : iterations) {
+            populateIterationTeamCapacity(project, team, apiClient, iteration);
+        }
     }
 
     /**
      * Retrieves formatted team members with capacity for a specific iteration.
      */
-    private List<String> getSprintCapacityDetails(String project, String team, Iteration iteration, AdoApiClient apiClient) {
-        List<String> details = new java.util.ArrayList<>();
+    private void populateIterationTeamCapacity(String project, String team, AdoApiClient apiClient, Iteration iteration) {
         try {
             logger.debug("Fetching capacities for iteration '{}'", iteration.getName());
             List<TeamMemberCapacity> capacities = apiClient.getIterationCapacities(project, team, iteration.getId());
-            logger.debug("Retrieved {} team members for iteration", capacities.size());
+            logger.trace("Found {} team members for iteration", capacities.size());
             //logger.trace("---" + iteration.getName() + " - " + iteration.getStartDate() + " - " + iteration.getFinishDate() + "---");
-            String itrDetails = getSprintDetails(project, team, iteration);
             for (TeamMemberCapacity capacity : capacities) {
-                StringBuilder sb = new StringBuilder(itrDetails);
-                sb.append(capacity.getDisplayName());
-                sb.append(TAB);
-                sb.append(capacity.getCapacityPerDay());
-                sb.append(TAB);
-                sb.append(capacity.getDaysOff());
-                sb.append(TAB);
                 int workedDays = DateUtils.calculateWeekDays(DateUtils.formatStringToLocalDate(iteration.getStartDate()), DateUtils.formatStringToLocalDate(iteration.getFinishDate()), capacity.getDaysOff());
-                sb.append(workedDays);
-                sb.append(TAB);
-                sb.append(workedDays * capacity.getCapacityPerDay());
-                details.add(sb.toString());
+                double workedHours = workedDays * capacity.getCapacityPerDay();
+                // Populate TeamMemberAllocation and add to iteration
+                TeamMemberAllocation allocation = new TeamMemberAllocation(
+                        capacity.getDisplayName(),
+                        capacity.getCapacityPerDay(),
+                        capacity.getDaysOff(),
+                        workedDays,
+                        workedHours
+                );
+                iteration.addAllocation(allocation);
             }
         } catch (Exception e) {
             logger.error("Error occurred while fetching sprint capacities: {}", iteration.getName(), e);
         }
-        return details;
-    }
-
-    /**
-     * Returns sprint details as a formatted string.
-     */
-    private String getSprintDetails(String project, String team, Iteration iteration) {
-        StringBuilder sb = new StringBuilder(project);
-        sb.append(TAB);
-        sb.append(team);
-        sb.append(TAB);
-        sb.append(iteration.getName());
-        sb.append(TAB);
-        sb.append(iteration.getStartDate());
-        sb.append(TAB);
-        sb.append(iteration.getFinishDate());
-        sb.append(TAB);
-        return sb.toString();
     }
 
 }
