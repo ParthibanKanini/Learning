@@ -10,15 +10,17 @@ public class WorkItem {
     private final String type;
     private final String state;
     private final String assignedTo;
+    private final String plannedVersion;
     private final java.util.List<Task> tasks = new java.util.ArrayList<>();
     private final java.util.List<PullRequest> pullRequests = new java.util.ArrayList<>();
 
-    public WorkItem(int id, String title, String type, String state, String assignedTo) {
+    public WorkItem(int id, String title, String type, String state, String assignedTo, String plannedVersion) {
         this.id = id;
         this.title = title;
         this.type = type;
         this.state = state;
         this.assignedTo = assignedTo;
+        this.plannedVersion = plannedVersion;
     }
 
     public int getId() {
@@ -55,6 +57,10 @@ public class WorkItem {
 
     public java.util.List<PullRequest> getPullRequests() {
         return pullRequests;
+    }
+
+    public String getPlannedVersion() {
+        return plannedVersion;
     }
 
     /**

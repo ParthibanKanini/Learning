@@ -44,7 +44,7 @@ public class AdoApiClient {
      * @return list of Iteration objects
      * @throws Exception if the API call fails
      */
-    public List<Iteration> getTeamSprint(String project, String team) throws Exception {
+    public List<Iteration> getTeamSprint(String project, String team, List<String> itrNames) throws Exception {
         logger.trace("Fetching team iterations");
         String teamUri = buildTeamUri(project, team);
         String itrUrl = teamUri + config.getIterationsApiPath() + "?api-version=" + config.getApiVersion();
@@ -55,7 +55,11 @@ public class AdoApiClient {
             List<Iteration> iterations = new ArrayList<>();
             for (int i = 0; i < iterationsArray.length(); i++) {
                 JSONObject iteration = iterationsArray.getJSONObject(i);
-                iterations.add(parseIteration(project, team, iteration));
+                Iteration itr = parseIteration(project, team, iteration);
+                // Filter by Iteration name if provided else add all iterations
+                if (itrNames == null || itrNames.isEmpty() || itrNames.contains(itr.getName())) {
+                    iterations.add(itr);
+                }
             }
             logger.info("Successfully retrieved {} team iterations", iterations.size());
             return iterations;
@@ -167,7 +171,6 @@ public class AdoApiClient {
                 JSONObject activity = activities.getJSONObject(i);
                 double capacityPerDay = activity.optDouble("capacityPerDay", 0);
                 if (capacityPerDay > 0) {
-                    //todo: dont use teamMemberSprintdaysoff length directly, consider start and end date
                     logger.trace("'{}' had PTO {} days & Team Holiday {} days.", displayName, teamMemberPTO, teamHolidays);
                     return new TeamMemberCapacity(displayName, capacityPerDay, teamMemberPTO + teamHolidays);
                 }
@@ -204,7 +207,6 @@ public class AdoApiClient {
      * @throws Exception
      */
     public List<TeamMemberCapacity> getSprintWorkItems(String project, String team, Iteration iteration) throws Exception {
-        logger.debug("Fetching sprint workitems for Sprint ID: {}", iteration.getId());
         String teamUri = buildTeamUri(project, team);
         try {
             // Get team holidays for the iteration
@@ -225,7 +227,6 @@ public class AdoApiClient {
                 }
             }
             logger.debug("Total work items processed: {}", count);
-
             //logger.debug("Sprint Work Items response: {}", response);
         } catch (JSONException e) {
             logger.error("Failed to parse work items response for iteration: {}", iteration.getId(), e);
@@ -245,7 +246,7 @@ public class AdoApiClient {
     private void getWorkItemFields(String project, String workItemLink, Iteration iteration) throws Exception {
         String workItemResponse = httpClient.get(workItemLink);
         JSONObject workItemJsonResponse = new JSONObject(workItemResponse);
-        logger.trace("Work Item Response: {}", workItemJsonResponse.toString());
+        //logger.debug("Work Item Response: {}", workItemJsonResponse.toString());
         String id = workItemJsonResponse.optString("id", "N/A");
         JSONObject fields = workItemJsonResponse.optJSONObject("fields");
         if (fields != null) {
@@ -253,34 +254,51 @@ public class AdoApiClient {
             //String title = fields.optString("System.Title", "N/A");
             String title = "";
             String workItemType = fields.optString("System.WorkItemType"); // Bug/Story
-            String storyPoints = fields.optString("Microsoft.VSTS.Scheduling.StoryPoints");
-            String assignedTo = fields.optJSONObject("System.AssignedTo").optString("displayName", "Unassigned");
             String state = fields.optString("System.State");
-            String priority = fields.optString("Microsoft.VSTS.Common.Priority");
-            String severity = fields.optString("Microsoft.VSTS.Common.Severity");
-            String createdDate = fields.optString("System.CreatedDate");
-            String createdBy = fields.optJSONObject("System.CreatedBy").optString("displayName");
-            String devEndDate = fields.optString("Custom.DevEndDate");
-            String qaEndDate = fields.optString("Custom.QACompletionDate");
-            String tags = fields.optString("System.Tags");
-            logger.trace("ID: {} | Title: {} | Type: {} | Story Points: {} | Assigned To: {} | State: {} | Priority: {} | Severity: {} | Created Date: {} | Created By: {} | Dev End Date: {} | QA End Date: {} | Tags: {}",
-                    id, title, workItemType, storyPoints, assignedTo, state, priority, severity, createdDate, createdBy, devEndDate, qaEndDate, tags);
+            // Check if the work item state is in the ignored list
+            List<String> ignoredStates = (config.getIgnoredWorkItemStates() != null) ? config.getIgnoredWorkItemStates() : List.of();
+            if (!ignoredStates.contains(state.trim())) {
+                logger.trace("Fetching Work item ID: {} in state: {}", id, state);
+                String storyPoints = fields.optString("Microsoft.VSTS.Scheduling.StoryPoints");
+                JSONObject assignedToObj = fields.optJSONObject("System.AssignedTo");
+                String assignedTo = assignedToObj != null ? assignedToObj.optString("displayName", "Unassigned") : "Unassigned";
+                String priority = fields.optString("Microsoft.VSTS.Common.Priority");
+                String severity = fields.optString("Microsoft.VSTS.Common.Severity");
+                String createdDate = fields.optString("System.CreatedDate");
+                JSONObject createdByObj = fields.optJSONObject("System.CreatedBy");
+                String createdBy = createdByObj != null ? createdByObj.optString("displayName") : "Unknown";
+                String devEndDate = fields.optString("Custom.DevEndDate");
+                String qaEndDate = fields.optString("Custom.QACompletionDate");
+                String tags = fields.optString("System.Tags");
+                logger.trace("ID: {} | Title: {} | Type: {} | Story Points: {} | Assigned To: {} | State: {} | Priority: {} | Severity: {} | Created Date: {} | Created By: {} | Dev End Date: {} | QA End Date: {} | Tags: {}",
+                        id, title, workItemType, storyPoints, assignedTo, state, priority, severity, createdDate, createdBy, devEndDate, qaEndDate, tags);
 
-            // Create and add WorkItem to iteration
-            WorkItem workItem = new WorkItem(Integer.parseInt(id), title, workItemType, state, assignedTo);
-            populateWorkItemChildren(project, id, workItem);
-            iteration.addWorkItem(workItem);
-            logger.debug("Added work item {} to iteration {}", id, iteration.getId());
+                // Custom field for project
+                String plannedReleaseVersion = fields.optString("Custom.SYMPlannedReleaseVersion", "");
+
+                // Create and add WorkItem to iteration
+                WorkItem workItem = new WorkItem(Integer.parseInt(id), title, workItemType, state, assignedTo, plannedReleaseVersion);
+
+                populateWorkItemChildren(project, id, workItem);
+                iteration.addWorkItem(workItem);
+                logger.debug("  Added work item {} in {} state to iteration {}", id, state, iteration.getName());
+            }
         } else {
             logger.warn("No fields found for work item ID: {}", id);
         }
     }
 
     private void populateWorkItemChildren(String project, String id, WorkItem workItem) throws Exception {
-        // Retrieve work item tasks
-        populateTasks(project, Integer.parseInt(id), workItem);
-        // Retrieve work item pull requests
-        populatePullRequests(project, Integer.parseInt(id), workItem);
+        // Retrieve work item tasks based on configuration
+        if (config.isFetchWorkItemTasks()) {
+            logger.trace("      Fetching tasks for Work item ID: {}", id);
+            populateTasks(project, Integer.parseInt(id), workItem);
+        }
+        // Retrieve work item pull requests based on configuration
+        if (config.isFetchWorkItemPullRequests()) {
+            logger.trace("      Fetching pull requests for Work item ID: {}", id);
+            populatePullRequests(project, Integer.parseInt(id), workItem);
+        }
     }
 
     /**
@@ -316,15 +334,28 @@ public class AdoApiClient {
     private void populatePullRequests(String project, int workItemId, WorkItem workItem) throws Exception {
         String teamUri = buildTeamUri(project, null);
         int totalPullRequestsAdded = 0;
-        JSONArray relations = fetchWorkItemRelations(teamUri, workItemId);
-        if (relations != null) {
-            for (int i = 0; i < relations.length(); i++) {
-                JSONObject relation = relations.getJSONObject(i);
-                if (isPullRequestRelation(relation)) {
-                    String urlLink = relation.optString("url");
-                    totalPullRequestsAdded += processPullRequestRelation(teamUri, urlLink, workItem);
+        try {
+            JSONArray relations = fetchWorkItemRelations(teamUri, workItemId);
+            if (relations != null) {
+                for (int i = 0; i < relations.length(); i++) {
+                    JSONObject relation = relations.getJSONObject(i);
+                    if (isPullRequestRelation(relation)) {
+                        //logger.trace("{} -{}", workItemId, relation.toString());
+                        String urlLink = relation.optString("url");
+                        try {
+                            totalPullRequestsAdded += processPullRequestRelation(teamUri, urlLink, workItem);
+                        } catch (Exception e) {
+                            logger.warn("Failed to process pull request for work item {}: {}", workItemId, e.getMessage());
+                            logger.debug("PR details: {}", urlLink, e);
+                            // Continue processing other PRs even if one fails
+                        }
+                    }
                 }
             }
+        } catch (Exception e) {
+            logger.warn("Failed to fetch work item relations for work item {}: {}", workItemId, e.getMessage());
+            logger.debug("Error details", e);
+            // Don't fail entirely if PR retrieval fails
         }
         logger.debug("      Total PR added to work item {}: {}", workItemId, totalPullRequestsAdded);
     }
@@ -401,7 +432,8 @@ public class AdoApiClient {
         if (workItemType.equals("Task")) {
             String taskState = fields.optString("System.State");
             String taskType = fields.optString("Microsoft.VSTS.Common.Activity");
-            String assignedTo = fields.optJSONObject("System.AssignedTo").optString("displayName", "Unassigned");
+            JSONObject assignedToObj = fields.optJSONObject("System.AssignedTo");
+            String assignedTo = assignedToObj != null ? assignedToObj.optString("displayName", "Unassigned") : "Unassigned";
             String originalEstimate = fields.optString("Microsoft.VSTS.Scheduling.OriginalEstimate");
             //TODO: Test Remaining hrs
             String remainingHrs = fields.optString("Microsoft.VSTS.Scheduling.RemainingWork");
@@ -427,39 +459,42 @@ public class AdoApiClient {
      */
     private int processPullRequestRelation(String teamUri, String prUrlLink, WorkItem workItem) throws Exception {
         int prAdded;
-        // Parse PR URL to extract IDs
-        String decodedUrl = URLDecoder.decode(prUrlLink.replace("vstfs:///Git/PullRequestId/", ""), StandardCharsets.UTF_8.toString());
-        String[] parts = decodedUrl.split("/");
+        try {
+            // Parse PR URL to extract IDs
+            String decodedUrl = URLDecoder.decode(prUrlLink.replace("vstfs:///Git/PullRequestId/", ""), StandardCharsets.UTF_8.toString());
+            String[] parts = decodedUrl.split("/");
 
-        String projectId = parts[0];
-        String repositoryId = parts[1];
-        String pullRequestId = parts[2];
+            String projectId = parts[0];
+            String repositoryId = parts[1];
+            String pullRequestId = parts[2];
 
-        logger.trace("Pull PR for {} {} {}", projectId, repositoryId, pullRequestId);
+            // Fetch PR details
+            String prDetailsUrl = buildPullRequestDetailsUrl(teamUri, repositoryId, pullRequestId);
+            logger.trace("Pull PR for {} {} {} from: {}", projectId, repositoryId, pullRequestId, prDetailsUrl);
 
-        // Fetch PR details
-        String prDetailsUrl = buildPullRequestDetailsUrl(teamUri, repositoryId, pullRequestId);
-        String prDetailsResponse = httpClient.get(prDetailsUrl);
-        JSONObject prDetailsJsonResponse = new JSONObject(prDetailsResponse);
+            String prDetailsResponse = httpClient.get(prDetailsUrl);
+            JSONObject prDetailsJsonResponse = new JSONObject(prDetailsResponse);
+            String createdBy = prDetailsJsonResponse.optJSONObject("createdBy").optString("displayName");
+            String creationDate = prDetailsJsonResponse.optString("creationDate");
+            logger.trace("  Pull request: {} - {} by {} on {} : {}", workItem, pullRequestId, createdBy, creationDate, prDetailsJsonResponse);
+            // Create PullRequest object
+            PullRequest pullRequest = new PullRequest(pullRequestId, createdBy, creationDate);
 
-        String createdBy = prDetailsJsonResponse.optJSONObject("createdBy").optString("displayName");
-        String creationDate = prDetailsJsonResponse.optString("creationDate");
-        logger.trace("  Pull request: {} by {} on {}", pullRequestId, createdBy, creationDate);
+            // Fetch PR threads
+            String prThreadUrl = buildPullRequestThreadUrl(teamUri, repositoryId, pullRequestId);
+            String prThreadResponse = httpClient.get(prThreadUrl);
+            JSONObject prThreadJsonResponse = new JSONObject(prThreadResponse);
 
-        // Create PullRequest object
-        PullRequest pullRequest = new PullRequest(pullRequestId, createdBy, creationDate);
+            processPullRequestThreads(prThreadJsonResponse, pullRequest);
 
-        // Fetch PR threads
-        String prThreadUrl = buildPullRequestThreadUrl(teamUri, repositoryId, pullRequestId);
-        String prThreadResponse = httpClient.get(prThreadUrl);
-        JSONObject prThreadJsonResponse = new JSONObject(prThreadResponse);
-
-        processPullRequestThreads(prThreadJsonResponse, pullRequest);
-
-        // Add PullRequest to WorkItem
-        workItem.addPullRequest(pullRequest);
-        prAdded = 1;
-        return prAdded;
+            // Add PullRequest to WorkItem
+            workItem.addPullRequest(pullRequest);
+            prAdded = 1;
+            return prAdded;
+        } catch (Exception e) {
+            logger.error("Failed to process pull request relation from URL: {}", prUrlLink, e);
+            throw e;
+        }
     }
 
     /**
@@ -508,6 +543,7 @@ public class AdoApiClient {
             String prThreadId = prObject.optString("id");
             String prThreadStatus = prObject.optString("status");
             Boolean prThreadIsDeleted = prObject.optBoolean("isDeleted");
+
             if (!prThreadIsDeleted && !prThreadStatus.equals("abandoned")) {
                 // Ignores abandoned & Deleted PR threads
                 // Accepts not deleted PRs in notSet, active, completed status
@@ -534,20 +570,18 @@ public class AdoApiClient {
     private Map<String, String[]> extractThreadCommenters(JSONObject prThreadObject, PullRequestThread thread) {
         Map<String, String[]> prThreadCommenters = new HashMap<>();
         JSONArray prThreadComments = prThreadObject.optJSONArray("comments");
-
         if (prThreadComments == null) {
             return prThreadCommenters;
         }
-
         for (int k = 0; k < prThreadComments.length(); k++) {
             JSONObject commentObj = prThreadComments.getJSONObject(k);
             String prThreadCommentType = commentObj.optString("commentType");
-
             if (prThreadCommentType.equals("text")) {
                 String commentPublishedDate = commentObj.optString("publishedDate");
-                // NOTE: DO NOT get content to avoid any accidental exposure of sensitive data
                 String author = commentObj.optJSONObject("author").optString("displayName");
-
+                // NOTE: DO NOT get content to avoid any accidental exposure of sensitive data.
+                //Uncoment only for debugging
+                //logger.trace("      {} : {} : {}", commentPublishedDate, author, commentObj.optString("content", ""));
                 String[] commentedDates = prThreadCommenters.getOrDefault(author, new String[]{});
                 String[] updatedDates = new String[commentedDates.length + 1];
                 System.arraycopy(commentedDates, 0, updatedDates, 0, commentedDates.length);

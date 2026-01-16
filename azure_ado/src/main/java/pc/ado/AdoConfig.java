@@ -2,6 +2,7 @@ package pc.ado;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Properties;
 
 import org.slf4j.Logger;
@@ -42,7 +43,7 @@ public class AdoConfig {
     }
 
     private void validateConfiguration() {
-        String[] requiredProperties = {"team", "organization", "project", "patToken", "apiVersion", "baseUri"};
+        String[] requiredProperties = {"teams", "organization", "project", "patToken", "apiVersion", "baseUri"};
         for (String prop : requiredProperties) {
             if (!config.containsKey(prop) || config.getProperty(prop).isBlank()) {
                 String error = "Required configuration property is missing or empty: " + prop;
@@ -53,8 +54,9 @@ public class AdoConfig {
         logger.debug("Configuration validation passed");
     }
 
-    public String getTeam() {
-        return config.getProperty("team");
+    public String[] getTeams() {
+        String teams = config.getProperty("teams");
+        return teams.split(",");
     }
 
     public String getOrganization() {
@@ -107,6 +109,36 @@ public class AdoConfig {
 
     public String getPRThreadApiPath() {
         return config.getProperty("PRThreadApiPath");
+    }
+
+    public String getOutputFormatterType() {
+        return config.getProperty("outputFormatterType", "json");
+    }
+
+    public List<String> getIgnoredWorkItemStates() {
+        String states = config.getProperty("ignoredWorkItemStates", "");
+        return List.of(states.split(","));
+    }
+
+    public List<String> getIncludeOnlyIterationWithNames() {
+        String includeOnlyIterationWithNames = config.getProperty("includeOnlyIterationWithNames");
+        return List.of(includeOnlyIterationWithNames.split(","));
+    }
+
+    public boolean isFetchCapacities() {
+        return Boolean.parseBoolean(config.getProperty("fetchCapacities", "false"));
+    }
+
+    public boolean isFetchWorkItemDetails() {
+        return Boolean.parseBoolean(config.getProperty("fetchWorkItemDetails", "false"));
+    }
+
+    public boolean isFetchWorkItemTasks() {
+        return Boolean.parseBoolean(config.getProperty("fetchWorkItemDetails.tasks", "false"));
+    }
+
+    public boolean isFetchWorkItemPullRequests() {
+        return Boolean.parseBoolean(config.getProperty("fetchWorkItemDetails.pullRequests", "false"));
     }
 
 }

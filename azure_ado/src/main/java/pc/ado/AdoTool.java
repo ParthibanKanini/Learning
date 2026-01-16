@@ -1,5 +1,6 @@
 package pc.ado;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -22,31 +23,65 @@ public class AdoTool {
 
     //private static final String TAB = "\t";
     public static void main(String[] args) {
+        long startTime = System.currentTimeMillis();
+        logger.info("<<<--- Start Execution --->>>");
         AdoTool tool = new AdoTool();
         tool.run();
+        long endTime = System.currentTimeMillis();
+        long duration = endTime - startTime;
+        logger.info("<<<--- Execution Completed in {} ms ({} seconds) --->>>", duration, duration / 1000.0);
     }
 
     /**
      * Runs the Azure DevOps reporting workflow.
      */
     public void run() {
+        long runStartTime = System.currentTimeMillis();
         AdoConfig config = AdoConfig.getInstance();
         AdoHttpClient httpClient = new AdoHttpClient(config.getPatToken());
         try {
             AdoApiClient apiClient = new AdoApiClient(config, httpClient);
-            List<Iteration> projectTeamItr = getTeamSprints(config.getProject(), config.getTeam(), apiClient);
-            populateTeamCapacitiesForIterations(config.getProject(), config.getTeam(), apiClient, projectTeamItr);
+            List<Iteration> projectTeamIterations = new ArrayList<>();
+            String project = config.getProject();
+            int totalTeamsProcessed = 0;
+            int totalIterationsCollected = 0;
 
-            //TODO: For testing, extract details for a specific sprint. make it null later.
-            String sprintName = null;
-            populateIterationWorkItemDetails(config, apiClient, projectTeamItr, sprintName);
+            for (String team : config.getTeams()) {
+                long teamStartTime = System.currentTimeMillis();
+                logger.info("Processing team: {}", team);
 
-            // Write details to file as JSON
-            logger.info("Generating report for project '{}' and team '{} - {}'", config.getProject(), config.getTeam(), projectTeamItr);
+                // Read iteration filter from config, or null to fetch all sprints
+                List<String> includeOnlyIterationWithNames = config.getIncludeOnlyIterationWithNames();
+                List<Iteration> projectTeamItr = getTeamSprints(project, team, apiClient, includeOnlyIterationWithNames);
+
+                if (config.isFetchCapacities()) {
+                    populateTeamCapacitiesForIterations(project, team, apiClient, projectTeamItr);
+                }
+                if (config.isFetchWorkItemDetails()) {
+                    populateIterationWorkItemDetails(project, team, apiClient, projectTeamItr);
+                }
+
+                // Write details to file using configured formatter
+                projectTeamIterations.addAll(projectTeamItr);
+                totalTeamsProcessed++;
+                totalIterationsCollected += projectTeamItr.size();
+
+                long teamDuration = System.currentTimeMillis() - teamStartTime;
+                logger.info("Collected data for project '{}' team '{}' with {} Iterations in {} ms",
+                        project, team, projectTeamItr.size(), teamDuration);
+            }
+
             AdoReportFormatter formatter = new AdoReportFormatter(config);
-            formatter.writeSprintCapacitiesToJsonFile(projectTeamItr);
-            logger.info("Report generation completed successfully.");
+            formatter.writeSprintCapacitiesToFormattedFile(projectTeamIterations);
 
+            long runEndTime = System.currentTimeMillis();
+            long totalDuration = runEndTime - runStartTime;
+            logger.info("Report generation completed successfully.");
+            logger.info("=== Execution Statistics ===");
+            logger.info("Total Teams Processed: {}", totalTeamsProcessed);
+            logger.info("Total Iterations Collected: {}", totalIterationsCollected);
+            logger.info("Total Execution Time: {} ms ({} seconds)", totalDuration, totalDuration / 1000.0);
+            logger.info("============================");
         } catch (Exception e) {
             logger.error("Error occurred during report generation", e);
             System.exit(1);
@@ -55,19 +90,16 @@ public class AdoTool {
         }
     }
 
-    private void populateIterationWorkItemDetails(AdoConfig config, AdoApiClient apiClient, List<Iteration> iterations, String sprintName) throws Exception {
-        final String project = config.getProject();
-        final String team = config.getTeam();
-        //List<Iteration> iterations = apiClient.getTeamSprint(project, team);
+    private void populateIterationWorkItemDetails(String project, String team, AdoApiClient apiClient, List<Iteration> iterations) throws Exception {
+        int totalIterations = iterations.size();
+        int currentIteration = 0;
         for (Iteration iteration : iterations) {
-            // If no print name provided or a specific sprint name is given, process it
-            if (sprintName == null || iteration.getName().equals(sprintName)) {
-                logger.debug("Fetching story report for sprint: {} -> {} -> {}", project, team, sprintName);
-                // Retrieve and process work items for the specified sprint
-                //final String itrId = iteration.getId();
-                apiClient.getSprintWorkItems(project, team, iteration);
-            }
+            currentIteration++;
+            logger.debug("Fetching Workitems for '{}' : '{}' : '{}' ({} of {})", project, team, iteration.getName(), currentIteration, totalIterations);
+            // Retrieve and process work items for the specified sprint
+            apiClient.getSprintWorkItems(project, team, iteration);
         }
+        logger.info("Fetching iteration work items completed successfully for project '{}' team '{}' for {} iterations", project, team, totalIterations);
         /* TODO: Fetch the below details for each work item
                 Impl details present(Y/N) - fields.(Custom.ImplementationDetails)
                 Dependancy
@@ -81,15 +113,15 @@ public class AdoTool {
                     Dependancy
                         successorOf []
                         predecessorOf []               */
-        logger.info("Story report generation completed successfully.");
+
     }
 
     /**
      * Retrieves all team sprints for a given project and team.
      */
-    private List<Iteration> getTeamSprints(String project, String team, AdoApiClient apiClient) throws Exception {
+    private List<Iteration> getTeamSprints(String project, String team, AdoApiClient apiClient, List<String> sprintNames) throws Exception {
         logger.debug("Retrieving team sprints for project '{}' and team '{}'", project, team);
-        List<Iteration> iterations = apiClient.getTeamSprint(project, team);
+        List<Iteration> iterations = apiClient.getTeamSprint(project, team, sprintNames);
         logger.debug("Retrieved {} sprints", iterations.size());
         return iterations;
     }
@@ -98,9 +130,14 @@ public class AdoTool {
      * Processes team sprints to retrieve their capacity details.
      */
     private void populateTeamCapacitiesForIterations(String project, String team, AdoApiClient apiClient, List<Iteration> iterations) {
+        int totalIterations = iterations.size();
+        int currentIteration = 0;
         for (Iteration iteration : iterations) {
+            currentIteration++;
+            logger.debug("Fetching Capacities for '{}' : '{}' : '{}' ({} of {})", project, team, iteration.getName(), currentIteration, totalIterations);
             populateIterationTeamCapacity(project, team, apiClient, iteration);
         }
+        logger.info("Fetching capacities completed successfully for project '{}' team '{}' for {} iterations", project, team, totalIterations);
     }
 
     /**
