@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import pc.ado.dto.Iteration;
 import pc.ado.dto.TeamMemberAllocation;
 import pc.ado.dto.TeamMemberCapacity;
+import pc.jvm.monitor.MemoryMonitorThread;
 
 /**
  * Main entry point for Azure DevOps reporting tool.
@@ -25,11 +26,38 @@ public class AdoTool {
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
         logger.info("<<<--- Start Execution --->>>");
-        AdoTool tool = new AdoTool();
-        tool.run();
+
+        // Start memory monitor thread if execution tracking is enabled
+        AdoConfig config = AdoConfig.getInstance();
+        MemoryMonitorThread memoryMonitor = null;
+
+        if (config.isExecutionTrackingEnabled()) {
+            logger.info("Execution tracking is enabled - starting memory monitor");
+            memoryMonitor = new MemoryMonitorThread(30_000); // 30 seconds interval
+            memoryMonitor.start();
+        }
+
+        try {
+            AdoTool tool = new AdoTool();
+            tool.run();
+        } finally {
+            // Request final memory stats before shutdown if monitoring is active
+            if (memoryMonitor != null) {
+                memoryMonitor.requestFinalLog();
+                try {
+                    // Give the monitor thread time to log final stats
+                    memoryMonitor.join(5000); // Wait up to 5 seconds
+                } catch (InterruptedException e) {
+                    logger.warn("Interrupted while waiting for memory monitor to complete");
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
-        logger.info("<<<--- Execution Completed in {} ms ({} seconds) --->>>", duration, duration / 1000.0);
+        if (config.isExecutionStatsEnabled()) {
+            logger.info("<<<--- Execution Completed in {} ms ({} seconds) --->>>", duration, duration / 1000.0);
+        }
     }
 
     /**

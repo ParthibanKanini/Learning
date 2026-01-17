@@ -141,4 +141,12 @@ public class AdoConfig {
         return Boolean.parseBoolean(config.getProperty("fetchWorkItemDetails.pullRequests", "false"));
     }
 
+    public boolean isExecutionTrackingEnabled() {
+        return Boolean.parseBoolean(config.getProperty("enableExecutionTracking", "false"));
+    }
+
+    public boolean isExecutionStatsEnabled() {
+        return Boolean.parseBoolean(config.getProperty("enableExecutionStats", "true"));
+    }
+
 }
