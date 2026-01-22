@@ -2,6 +2,7 @@ package pc.ado;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Properties;
 
@@ -147,6 +148,32 @@ public class AdoConfig {
 
     public boolean isExecutionStatsEnabled() {
         return Boolean.parseBoolean(config.getProperty("enableExecutionStats", "true"));
+    }
+
+    public boolean isIgnoreSubmitterPRComments() {
+        return Boolean.parseBoolean(config.getProperty("ignoreSubmitterPRComments", "false"));
+    }
+
+    public boolean isIgnoreSingleWordPRComment() {
+        return Boolean.parseBoolean(config.getProperty("ignoreSingleWordPRComment", "false"));
+    }
+
+    public List<String> getIgnoreCommentsWith() {
+        String comments = config.getProperty("ignoreCommentsWith", "").trim();
+        return List.of(comments.split(","));
+    }
+
+    public LocalDate getIgnoreIterationsEndedBefore() {
+        String dateStr = config.getProperty("ignoreIterationsEndedBefore", "").trim();
+        if (dateStr.isEmpty()) {
+            return null;
+        }
+        try {
+            return DateUtils.formatStringToLocalDate(dateStr);
+        } catch (Exception e) {
+            logger.warn("Failed to parse ignoreIterationsEndedBefore date: {}", dateStr, e);
+            return null;
+        }
     }
 
 }

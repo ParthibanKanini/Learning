@@ -12,6 +12,7 @@ import pc.ado.dto.Iteration;
 import pc.ado.dto.PullRequest;
 import pc.ado.dto.PullRequestThread;
 import pc.ado.dto.TeamMemberAllocation;
+import pc.ado.dto.ThreadComment;
 import pc.ado.dto.WorkItem;
 
 /**
@@ -79,8 +80,15 @@ public class JsonIterationFormatter implements IterationFormatter {
                             threadJson.put("threadId", thread.getThreadId());
                             threadJson.put("status", thread.getStatus());
                             JSONObject commentersJson = new JSONObject();
-                            for (Map.Entry<String, String[]> commenter : thread.getCommenters().entrySet()) {
-                                commentersJson.put(commenter.getKey(), new JSONArray(commenter.getValue()));
+                            for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
+                                JSONArray commentsArray = new JSONArray();
+                                for (ThreadComment comment : commenter.getValue()) {
+                                    JSONObject commentJson = new JSONObject();
+                                    commentJson.put("commentedDate", comment.getCommentedDate());
+                                    commentJson.put("commentContent", comment.getCommentContent());
+                                    commentsArray.put(commentJson);
+                                }
+                                commentersJson.put(commenter.getKey(), commentsArray);
                             }
                             threadJson.put("commenters", commentersJson);
                             threadsArray.put(threadJson);
@@ -109,8 +117,15 @@ public class JsonIterationFormatter implements IterationFormatter {
                         threadJson.put("isDeleted", thread.isDeleted());
 
                         JSONObject commentersJson = new JSONObject();
-                        for (Map.Entry<String, String[]> commenter : thread.getCommenters().entrySet()) {
-                            commentersJson.put(commenter.getKey(), new JSONArray(commenter.getValue()));
+                        for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
+                            JSONArray commentsArray = new JSONArray();
+                            for (ThreadComment comment : commenter.getValue()) {
+                                JSONObject commentJson = new JSONObject();
+                                commentJson.put("commentedDate", comment.getCommentedDate());
+                                commentJson.put("commentContent", comment.getCommentContent());
+                                commentsArray.put(commentJson);
+                            }
+                            commentersJson.put(commenter.getKey(), commentsArray);
                         }
                         threadJson.put("commenters", commentersJson);
                         threadsArray.put(threadJson);

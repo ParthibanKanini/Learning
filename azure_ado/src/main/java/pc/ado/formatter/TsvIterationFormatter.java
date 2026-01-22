@@ -10,6 +10,7 @@ import pc.ado.dto.Iteration;
 import pc.ado.dto.PullRequest;
 import pc.ado.dto.PullRequestThread;
 import pc.ado.dto.TeamMemberAllocation;
+import pc.ado.dto.ThreadComment;
 import pc.ado.dto.WorkItem;
 
 /**
@@ -40,9 +41,22 @@ public class TsvIterationFormatter implements IterationFormatter {
                     .append("Worked Hours").append(TAB)
                     .append("Planned Release Ver").append(TAB)
                     .append("Work Item ID").append(TAB)
+                    .append("Work Item Title").append(TAB)
                     .append("Work Item Type").append(TAB)
                     .append("Work Item State").append(TAB)
                     .append("Assigned To").append(TAB)
+                    .append("Story Points").append(TAB)
+                    .append("QA Story Points").append(TAB)
+                    .append("Original Story Points").append(TAB)
+                    .append("Priority").append(TAB)
+                    .append("Severity").append(TAB)
+                    .append("Created Date").append(TAB)
+                    .append("Created By").append(TAB)
+                    .append("Dev End Date").append(TAB)
+                    .append("QA Ready Date").append(TAB)
+                    .append("QA End Date").append(TAB)
+                    .append("Tags").append(TAB)
+                    .append("Has Impl").append(TAB)
                     .append("Pull Request ID").append(TAB)
                     .append("PR Created By").append(TAB)
                     .append("PR Creation Date").append(TAB)
@@ -50,7 +64,8 @@ public class TsvIterationFormatter implements IterationFormatter {
                     .append("PR Thread Status").append(TAB)
                     //.append("PR Thread Deleted").append(TAB)
                     .append("Commenter").append(TAB)
-                    .append("Comment Count").append(NEWLINE);
+                    .append("Comment Count").append(TAB)
+                    .append("Comments").append(NEWLINE);
 
             for (Iteration iteration : iterations) {
                 String projectName = iteration.getProjName();
@@ -75,21 +90,40 @@ public class TsvIterationFormatter implements IterationFormatter {
                             .append(allocation.getDaysOff()).append(TAB)
                             .append(allocation.getWorkedDays()).append(TAB)
                             .append(allocation.getWorkedHours()).append(TAB)
-                            .append(TAB)
-                            .append(TAB).append(TAB).append(TAB).append(TAB)
-                            .append(TAB).append(TAB).append(TAB)
-                            .append(TAB).append(TAB).append(TAB)
-                            .append(TAB).append(TAB)
+                            .append(TAB) // Planned Release Ver
+                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
+                            .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
+                            .append(TAB).append(TAB) // Priority, Severity
+                            .append(TAB).append(TAB) // Created Date, Created By
+                            .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
+                            .append(TAB) // Tags
+                            .append(TAB) // Has Implementation Details
+                            .append(TAB).append(TAB).append(TAB) // PR ID, PR Created By, PR Creation Date
+                            .append(TAB).append(TAB) // PR Thread ID, PR Thread Status
+                            .append(TAB).append(TAB) // Commenter, Comment Count
                             .append(NEWLINE);
                 }
 
                 // Write work item data with their associated PRs
                 for (WorkItem workItem : iteration.getWorkItems()) {
                     String workItemId = String.valueOf(workItem.getId());
+                    String workItemTitle = workItem.getTitle();
                     String workItemType = workItem.getType();
                     String workItemState = workItem.getState();
                     String assignedTo = workItem.getAssignedTo();
                     String plannedVersion = workItem.getPlannedVersion();
+                    String storyPoints = workItem.getStoryPoints();
+                    String qaStoryPoints = workItem.getQaStoryPoints();
+                    String originalStoryPoints = workItem.getOriginalStoryPoints();
+                    String priority = workItem.getPriority();
+                    String severity = workItem.getSeverity();
+                    String createdDate = workItem.getCreatedDate();
+                    String createdBy = workItem.getCreatedBy();
+                    String devEndDate = workItem.getDevEndDate();
+                    String qaReadyDate = workItem.getQaReadyDate();
+                    String qaEndDate = workItem.getQaEndDate();
+                    boolean hasImplDetails = workItem.isHasImplementationDetails();
+                    String tags = workItem.getTags();
 
                     // Check if work item has pull requests
                     if (workItem.getPullRequests().isEmpty()) {
@@ -99,15 +133,28 @@ public class TsvIterationFormatter implements IterationFormatter {
                                 .append(iterationName).append(TAB)
                                 .append(startDate).append(TAB)
                                 .append(finishDate).append(TAB)
-                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
+                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
                                 .append(plannedVersion).append(TAB)
                                 .append(workItemId).append(TAB)
+                                .append(workItemTitle).append(TAB)
                                 .append(workItemType).append(TAB)
                                 .append(workItemState).append(TAB)
                                 .append(assignedTo).append(TAB)
-                                .append(TAB).append(TAB).append(TAB)
-                                .append(TAB).append(TAB).append(TAB)
-                                .append(TAB).append(TAB)
+                                .append(storyPoints).append(TAB)
+                                .append(qaStoryPoints).append(TAB)
+                                .append(originalStoryPoints).append(TAB)
+                                .append(priority).append(TAB)
+                                .append(severity).append(TAB)
+                                .append(createdDate).append(TAB)
+                                .append(createdBy).append(TAB)
+                                .append(devEndDate).append(TAB)
+                                .append(qaReadyDate).append(TAB)
+                                .append(qaEndDate).append(TAB)
+                                .append(tags).append(TAB)
+                                .append(hasImplDetails).append(TAB)
+                                .append(TAB).append(TAB).append(TAB) // PR fields
+                                .append(TAB).append(TAB) // Thread fields
+                                .append(TAB).append(TAB) // Commenter fields
                                 .append(NEWLINE);
                     } else {
                         // Print work item with each of its PRs
@@ -123,17 +170,30 @@ public class TsvIterationFormatter implements IterationFormatter {
                                         .append(iterationName).append(TAB)
                                         .append(startDate).append(TAB)
                                         .append(finishDate).append(TAB)
-                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
+                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
                                         .append(plannedVersion).append(TAB)
                                         .append(workItemId).append(TAB)
+                                        .append(workItemTitle).append(TAB)
                                         .append(workItemType).append(TAB)
                                         .append(workItemState).append(TAB)
                                         .append(assignedTo).append(TAB)
+                                        .append(storyPoints).append(TAB)
+                                        .append(qaStoryPoints).append(TAB)
+                                        .append(originalStoryPoints).append(TAB)
+                                        .append(priority).append(TAB)
+                                        .append(severity).append(TAB)
+                                        .append(createdDate).append(TAB)
+                                        .append(createdBy).append(TAB)
+                                        .append(devEndDate).append(TAB)
+                                        .append(qaReadyDate).append(TAB)
+                                        .append(qaEndDate).append(TAB)
+                                        .append(tags).append(TAB)
+                                        .append(hasImplDetails).append(TAB)
                                         .append(prId).append(TAB)
                                         .append(prCreatedBy).append(TAB)
                                         .append(prCreationDate).append(TAB)
-                                        .append(TAB).append(TAB).append(TAB)
-                                        .append(TAB).append(TAB)
+                                        .append(TAB).append(TAB) // Thread fields
+                                        .append(TAB).append(TAB) // Commenter fields
                                         .append(NEWLINE);
                             } else {
                                 // PR with threads
@@ -149,35 +209,73 @@ public class TsvIterationFormatter implements IterationFormatter {
                                                 .append(iterationName).append(TAB)
                                                 .append(startDate).append(TAB)
                                                 .append(finishDate).append(TAB)
-                                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
+                                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
                                                 .append(plannedVersion).append(TAB)
                                                 .append(workItemId).append(TAB)
+                                                .append(workItemTitle).append(TAB)
                                                 .append(workItemType).append(TAB)
                                                 .append(workItemState).append(TAB)
                                                 .append(assignedTo).append(TAB)
+                                                .append(storyPoints).append(TAB)
+                                                .append(qaStoryPoints).append(TAB)
+                                                .append(originalStoryPoints).append(TAB)
+                                                .append(priority).append(TAB)
+                                                .append(severity).append(TAB)
+                                                .append(createdDate).append(TAB)
+                                                .append(createdBy).append(TAB)
+                                                .append(devEndDate).append(TAB)
+                                                .append(qaReadyDate).append(TAB)
+                                                .append(qaEndDate).append(TAB)
+                                                .append(tags).append(TAB)
+                                                .append(hasImplDetails).append(TAB)
                                                 .append(prId).append(TAB)
                                                 .append(prCreatedBy).append(TAB)
                                                 .append(prCreationDate).append(TAB)
                                                 .append(threadId).append(TAB)
                                                 .append(threadStatus).append(TAB)
-                                                .append(TAB).append(TAB)
+                                                .append(TAB).append(TAB).append(TAB) // Commenter fields (name, count, comments)
                                                 .append(NEWLINE);
                                     } else {
                                         // Thread with commenters
-                                        for (Map.Entry<String, String[]> commenter : thread.getCommenters().entrySet()) {
+                                        for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
                                             String commenterName = commenter.getKey();
-                                            int commentCount = commenter.getValue().length;
+                                            List<ThreadComment> comments = commenter.getValue();
+                                            int commentCount = comments.size();
+
+                                            // Format comments: enclose each in quotes and join with " - "
+                                            StringBuilder commentsBuilder = new StringBuilder();
+                                            for (int i = 0; i < comments.size(); i++) {
+                                                if (i > 0) {
+                                                    commentsBuilder.append(" - ");
+                                                }
+                                                commentsBuilder.append("\"").append(comments.get(i).getCommentContent()).append("\"");
+                                            }
+                                            String formattedComments = commentsBuilder.toString();
+
                                             sb.append(projectName).append(TAB)
                                                     .append(teamName).append(TAB)
                                                     .append(iterationName).append(TAB)
                                                     .append(startDate).append(TAB)
                                                     .append(finishDate).append(TAB)
-                                                    .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
+                                                    .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
                                                     .append(plannedVersion).append(TAB)
                                                     .append(workItemId).append(TAB)
+                                                    .append(workItemTitle).append(TAB)
                                                     .append(workItemType).append(TAB)
                                                     .append(workItemState).append(TAB)
                                                     .append(assignedTo).append(TAB)
+                                                    .append(storyPoints).append(TAB)
+                                                    .append(qaStoryPoints).append(TAB)
+                                                    .append(originalStoryPoints).append(TAB)
+                                                    .append(priority).append(TAB)
+                                                    .append(severity).append(TAB)
+                                                    .append(createdDate).append(TAB)
+                                                    .append(createdBy).append(TAB)
+                                                    .append(devEndDate).append(TAB)
+                                                    .append(qaReadyDate).append(TAB)
+                                                    .append(qaEndDate).append(TAB)
+                                                    .append(tags).append(TAB)
+                                                    .append(hasImplDetails).append(TAB)
                                                     .append(prId).append(TAB)
                                                     .append(prCreatedBy).append(TAB)
                                                     .append(prCreationDate).append(TAB)
@@ -185,7 +283,8 @@ public class TsvIterationFormatter implements IterationFormatter {
                                                     .append(threadStatus).append(TAB)
                                                     //.append(isDeleted).append(TAB)
                                                     .append(commenterName).append(TAB)
-                                                    .append(commentCount)
+                                                    .append(commentCount).append(TAB)
+                                                    .append(formattedComments)
                                                     .append(NEWLINE);
                                         }
                                     }
@@ -222,13 +321,20 @@ public class TsvIterationFormatter implements IterationFormatter {
                                 .append(iterationName).append(TAB)
                                 .append(startDate).append(TAB)
                                 .append(finishDate).append(TAB)
-                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
-                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
+                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
+                                .append(TAB) // Planned Release Ver
+                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
+                                .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
+                                .append(TAB).append(TAB) // Priority, Severity
+                                .append(TAB).append(TAB) // Created Date, Created By
+                                .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
+                                .append(TAB) // Tags
+                                .append(TAB) // Has Implementation Details
                                 .append(prId).append(TAB)
                                 .append(prCreatedBy).append(TAB)
                                 .append(prCreationDate).append(TAB)
-                                .append(TAB).append(TAB).append(TAB)
-                                .append(TAB).append(TAB)
+                                .append(TAB).append(TAB) // Thread fields
+                                .append(TAB).append(TAB) // Commenter fields
                                 .append(NEWLINE);
                     } else {
                         // PR with threads
@@ -244,29 +350,54 @@ public class TsvIterationFormatter implements IterationFormatter {
                                         .append(iterationName).append(TAB)
                                         .append(startDate).append(TAB)
                                         .append(finishDate).append(TAB)
-                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
-                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
+                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
+                                        .append(TAB) // Planned Release Ver
+                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
+                                        .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
+                                        .append(TAB).append(TAB) // Priority, Severity
+                                        .append(TAB).append(TAB) // Created Date, Created By
+                                        .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
+                                        .append(TAB) // Tags
+                                        .append(TAB) // Has Implementation Details
                                         .append(prId).append(TAB)
                                         .append(prCreatedBy).append(TAB)
                                         .append(prCreationDate).append(TAB)
                                         .append(threadId).append(TAB)
                                         .append(threadStatus).append(TAB)
                                         //.append(isDeleted).append(TAB)
-                                        .append(TAB).append(TAB)
+                                        .append(TAB).append(TAB).append(TAB) // Commenter fields (name, count, comments)
                                         .append(NEWLINE);
                             } else {
                                 // Thread with commenters
-                                for (Map.Entry<String, String[]> commenter : thread.getCommenters().entrySet()) {
+                                for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
                                     String commenterName = commenter.getKey();
-                                    int commentCount = commenter.getValue().length;
+                                    List<ThreadComment> comments = commenter.getValue();
+                                    int commentCount = comments.size();
+
+                                    // Format comments: enclose each in quotes and join with " - "
+                                    StringBuilder commentsBuilder = new StringBuilder();
+                                    for (int i = 0; i < comments.size(); i++) {
+                                        if (i > 0) {
+                                            commentsBuilder.append(" - ");
+                                        }
+                                        commentsBuilder.append("\"").append(comments.get(i).getCommentContent()).append("\"");
+                                    }
+                                    String formattedComments = commentsBuilder.toString();
 
                                     sb.append(projectName).append(TAB)
                                             .append(teamName).append(TAB)
                                             .append(iterationName).append(TAB)
                                             .append(startDate).append(TAB)
                                             .append(finishDate).append(TAB)
-                                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
-                                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB)
+                                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
+                                            .append(TAB) // Planned Release Ver
+                                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
+                                            .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
+                                            .append(TAB).append(TAB) // Priority, Severity
+                                            .append(TAB).append(TAB) // Created Date, Created By
+                                            .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
+                                            .append(TAB) // Tags
+                                            .append(TAB) // Has Implementation Details
                                             .append(prId).append(TAB)
                                             .append(prCreatedBy).append(TAB)
                                             .append(prCreationDate).append(TAB)
@@ -274,7 +405,8 @@ public class TsvIterationFormatter implements IterationFormatter {
                                             .append(threadStatus).append(TAB)
                                             .append(isDeleted).append(TAB)
                                             .append(commenterName).append(TAB)
-                                            .append(commentCount)
+                                            .append(commentCount).append(TAB)
+                                            .append(formattedComments)
                                             .append(NEWLINE);
                                 }
                             }

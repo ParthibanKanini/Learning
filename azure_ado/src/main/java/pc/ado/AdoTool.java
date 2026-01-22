@@ -150,7 +150,7 @@ public class AdoTool {
     private List<Iteration> getTeamSprints(String project, String team, AdoApiClient apiClient, List<String> sprintNames) throws Exception {
         logger.debug("Retrieving team sprints for project '{}' and team '{}'", project, team);
         List<Iteration> iterations = apiClient.getTeamSprint(project, team, sprintNames);
-        logger.debug("Retrieved {} sprints", iterations.size());
+        logger.debug("Identified {} sprints", iterations.size());
         return iterations;
     }
 

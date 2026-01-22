@@ -1,6 +1,7 @@
 package pc.ado.dto;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -11,7 +12,7 @@ public class PullRequestThread {
     private final String threadId;
     private final String status;
     private final boolean isDeleted;
-    private final Map<String, String[]> commenters;
+    private final Map<String, List<ThreadComment>> commenters;
 
     public PullRequestThread(String threadId, String status, boolean isDeleted) {
         this.threadId = threadId;
@@ -32,12 +33,12 @@ public class PullRequestThread {
         return isDeleted;
     }
 
-    public Map<String, String[]> getCommenters() {
+    public Map<String, List<ThreadComment>> getCommenters() {
         return commenters;
     }
 
-    public void addCommenter(String author, String[] commentedDates) {
-        this.commenters.put(author, commentedDates);
+    public void addCommenter(String author, List<ThreadComment> comments) {
+        this.commenters.put(author, comments);
     }
 
     @Override

@@ -3,6 +3,7 @@ package pc.ado;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,6 +19,7 @@ import pc.ado.dto.Iteration;
 import pc.ado.dto.PullRequest;
 import pc.ado.dto.PullRequestThread;
 import pc.ado.dto.TeamMemberCapacity;
+import pc.ado.dto.ThreadComment;
 import pc.ado.dto.WorkItem;
 
 /**
@@ -56,12 +58,24 @@ public class AdoApiClient {
             for (int i = 0; i < iterationsArray.length(); i++) {
                 JSONObject iteration = iterationsArray.getJSONObject(i);
                 Iteration itr = parseIteration(project, team, iteration);
+                //Ignore iterations ended before a specific date from config
+                // Extract the raw finish date from JSON before it's formatted
+                JSONObject attributes = iteration.optJSONObject("attributes");
+                String rawFinishDate = attributes != null ? attributes.optString("finishDate", "N/A") : "N/A";
+                if (!rawFinishDate.equals("N/A")) {
+                    LocalDate itrFinishDate = DateUtils.formatISODateToLocalDate(rawFinishDate);
+                    LocalDate ignoreBeforeDate = config.getIgnoreIterationsEndedBefore();
+                    if (ignoreBeforeDate != null && itrFinishDate.isBefore(ignoreBeforeDate)) {
+                        logger.debug("Ignoring iteration '{}:{}' as it ended before {}", itr.getName(), itrFinishDate, ignoreBeforeDate);
+                        continue;
+                    }
+                }
                 // Filter by Iteration name if provided else add all iterations
                 if (itrNames == null || itrNames.isEmpty() || itrNames.contains(itr.getName())) {
                     iterations.add(itr);
                 }
             }
-            logger.info("Successfully retrieved {} team iterations", iterations.size());
+            logger.debug("Successfully identified {} team iterations", iterations.size());
             return iterations;
         } catch (JSONException e) {
             logger.error("Failed to parse iterations response", e);
@@ -113,7 +127,7 @@ public class AdoApiClient {
                     capacities.add(capacity);
                 }
             }
-            logger.info("Retrieved {} team members with capacity for iteration: {}", capacities.size(), iterationId);
+            logger.info("Identified {} team members with capacity for iteration: {}", capacities.size(), iterationId);
             return capacities;
         } catch (JSONException e) {
             logger.error("Failed to parse capacities response for iteration: {}", iterationId, e);
@@ -260,6 +274,8 @@ public class AdoApiClient {
             if (!ignoredStates.contains(state.trim())) {
                 logger.trace("Fetching Work item ID: {} in state: {}", id, state);
                 String storyPoints = fields.optString("Microsoft.VSTS.Scheduling.StoryPoints");
+                String QAStoryPoints = fields.optString("GAAPChecklistProcess.QAPts");
+                String OrigStoryPoints = fields.optString("GAAPChecklistProcess.OriginalStoryPts");
                 JSONObject assignedToObj = fields.optJSONObject("System.AssignedTo");
                 String assignedTo = assignedToObj != null ? assignedToObj.optString("displayName", "Unassigned") : "Unassigned";
                 String priority = fields.optString("Microsoft.VSTS.Common.Priority");
@@ -268,7 +284,11 @@ public class AdoApiClient {
                 JSONObject createdByObj = fields.optJSONObject("System.CreatedBy");
                 String createdBy = createdByObj != null ? createdByObj.optString("displayName") : "Unknown";
                 String devEndDate = fields.optString("Custom.DevEndDate");
+                String qaReadyDate = fields.optString("Microsoft.VSTS.Scheduling.DueDate");
+                //TODO: Test this field with ADO dataset. 
                 String qaEndDate = fields.optString("Custom.QACompletionDate");
+                String implDetails = fields.optString("Custom.ImplementationDetails");
+
                 String tags = fields.optString("System.Tags");
                 logger.trace("ID: {} | Title: {} | Type: {} | Story Points: {} | Assigned To: {} | State: {} | Priority: {} | Severity: {} | Created Date: {} | Created By: {} | Dev End Date: {} | QA End Date: {} | Tags: {}",
                         id, title, workItemType, storyPoints, assignedTo, state, priority, severity, createdDate, createdBy, devEndDate, qaEndDate, tags);
@@ -277,7 +297,10 @@ public class AdoApiClient {
                 String plannedReleaseVersion = fields.optString("Custom.SYMPlannedReleaseVersion", "");
 
                 // Create and add WorkItem to iteration
-                WorkItem workItem = new WorkItem(Integer.parseInt(id), title, workItemType, state, assignedTo, plannedReleaseVersion);
+                WorkItem workItem = new WorkItem(Integer.parseInt(id), title, workItemType, state, assignedTo, plannedReleaseVersion,
+                        storyPoints, QAStoryPoints, OrigStoryPoints,
+                        priority, severity, createdDate, createdBy,
+                        devEndDate, qaReadyDate, qaEndDate, !implDetails.isEmpty(), tags);
 
                 populateWorkItemChildren(project, id, workItem);
                 iteration.addWorkItem(workItem);
@@ -345,8 +368,8 @@ public class AdoApiClient {
                         try {
                             totalPullRequestsAdded += processPullRequestRelation(teamUri, urlLink, workItem);
                         } catch (Exception e) {
+                            logger.info("PR details: {}", urlLink, e);
                             logger.warn("Failed to process pull request for work item {}: {}", workItemId, e.getMessage());
-                            logger.debug("PR details: {}", urlLink, e);
                             // Continue processing other PRs even if one fails
                         }
                     }
@@ -357,7 +380,7 @@ public class AdoApiClient {
             logger.debug("Error details", e);
             // Don't fail entirely if PR retrieval fails
         }
-        logger.debug("      Total PR added to work item {}: {}", workItemId, totalPullRequestsAdded);
+        logger.trace("      Total PR added to work item {}: {}", workItemId, totalPullRequestsAdded);
     }
 
     /**
@@ -435,14 +458,24 @@ public class AdoApiClient {
             JSONObject assignedToObj = fields.optJSONObject("System.AssignedTo");
             String assignedTo = assignedToObj != null ? assignedToObj.optString("displayName", "Unassigned") : "Unassigned";
             String originalEstimate = fields.optString("Microsoft.VSTS.Scheduling.OriginalEstimate");
+            String completedHrs = fields.optString("Microsoft.VSTS.Scheduling.CompletedWork");
             //TODO: Test Remaining hrs
             String remainingHrs = fields.optString("Microsoft.VSTS.Scheduling.RemainingWork");
 
-            logger.trace("    Task Type: {} - State: {} - Assigned To: {} - Original Estimate: {} hrs - Remaining Hrs: {} hrs",
-                    taskType, taskState, assignedTo, originalEstimate, remainingHrs);
+            /*tasks []
+                    ID
+                    remaining hrs
+                    actual hrs
+                    assigned to
+                    Dependancy
+                        successorOf []
+                        predecessorOf [] 
+             */
+            logger.trace("    Task Type: {} - State: {} - Assigned To: {} - Original Estimate: {} hrs - Remaining Hrs: {} hrs - Completed Hrs: {} hrs",
+                    taskType, taskState, assignedTo, originalEstimate, remainingHrs, completedHrs);
 
             // Create Task DTO and add to WorkItem
-            WorkItem.Task task = new WorkItem.Task(taskType, taskState, assignedTo, originalEstimate, remainingHrs);
+            WorkItem.Task task = new WorkItem.Task(taskType, taskState, assignedTo, originalEstimate, remainingHrs, completedHrs);
             workItem.addTask(task);
             taskAdded = 1;
         }
@@ -487,6 +520,9 @@ public class AdoApiClient {
 
             processPullRequestThreads(prThreadJsonResponse, pullRequest);
 
+            /*if (!pullRequest.getThreads().isEmpty()) {
+                logger.debug("  Pull request: {} - {} by {} on {} : {}", workItem, pullRequestId, createdBy, creationDate, prDetailsJsonResponse);
+            }*/
             // Add PullRequest to WorkItem
             workItem.addPullRequest(pullRequest);
             prAdded = 1;
@@ -548,7 +584,7 @@ public class AdoApiClient {
                 // Ignores abandoned & Deleted PR threads
                 // Accepts not deleted PRs in notSet, active, completed status
                 PullRequestThread thread = new PullRequestThread(prThreadId, prThreadStatus, prThreadIsDeleted);
-                Map<String, String[]> prThreadCommenters = extractThreadCommenters(prObject, thread);
+                Map<String, List<ThreadComment>> prThreadCommenters = extractThreadCommenters(prObject, thread, pullRequest.getCreatedBy());
 
                 if (!prThreadCommenters.isEmpty()) {
                     logger.trace("      PR {} (Text)Thread {} in '{}' state with {} collaborators: {}",
@@ -565,33 +601,58 @@ public class AdoApiClient {
      *
      * @param prThreadObject
      * @param thread
-     * @return Map of author name to array of commented dates
+     * @return Map of author name to list of ThreadComment objects
      */
-    private Map<String, String[]> extractThreadCommenters(JSONObject prThreadObject, PullRequestThread thread) {
-        Map<String, String[]> prThreadCommenters = new HashMap<>();
+    private Map<String, List<ThreadComment>> extractThreadCommenters(JSONObject prThreadObject, PullRequestThread thread, String pullRequestCreatedBy) {
+        Map<String, List<ThreadComment>> prThreadCommenters = new HashMap<>();
         JSONArray prThreadComments = prThreadObject.optJSONArray("comments");
         if (prThreadComments == null) {
             return prThreadCommenters;
         }
         for (int k = 0; k < prThreadComments.length(); k++) {
             JSONObject commentObj = prThreadComments.getJSONObject(k);
+            //logger.trace("PR Comment: {}", commentObj.toString());
             String prThreadCommentType = commentObj.optString("commentType");
             if (prThreadCommentType.equals("text")) {
                 String commentPublishedDate = commentObj.optString("publishedDate");
-                String author = commentObj.optJSONObject("author").optString("displayName");
-                // NOTE: DO NOT get content to avoid any accidental exposure of sensitive data.
-                //Uncoment only for debugging
-                //logger.trace("      {} : {} : {}", commentPublishedDate, author, commentObj.optString("content", ""));
-                String[] commentedDates = prThreadCommenters.getOrDefault(author, new String[]{});
-                String[] updatedDates = new String[commentedDates.length + 1];
-                System.arraycopy(commentedDates, 0, updatedDates, 0, commentedDates.length);
-                updatedDates[commentedDates.length] = commentPublishedDate;
-                prThreadCommenters.put(author, updatedDates);
+                String commenter = commentObj.optJSONObject("author").optString("displayName");
+
+                // Skip submitter's comments if configured to ignore them
+                if (config.isIgnoreSubmitterPRComments() && commenter.equals(pullRequestCreatedBy)) {
+                    logger.trace("      Ignoring PR submitter comment from: {}", commenter);
+                    continue;
+                }
+                String content = commentObj.optString("content", "").replaceAll("[\r\n]+", "   "); // Replace newlines with three spaces
+                // If content is a single word then ignore it based on isIgnoreSingleWordPRComment config
+                if (config.isIgnoreSingleWordPRComment() && content.trim().split("\\s+").length == 1) {
+                    logger.trace("      Ignoring single word PR comment from: {} ", commenter);
+                    continue;
+                }
+                // If content contains any of the ignore phrases then skip it
+                List<String> ignorePhrases = config.getIgnoreCommentsWith();
+                boolean containsIgnorePhrase = false;
+                if (ignorePhrases != null && !ignorePhrases.isEmpty()) {
+                    for (String phrase : ignorePhrases) {
+                        if (content.toLowerCase().contains(phrase.toLowerCase())) {
+                            containsIgnorePhrase = true;
+                            logger.trace("      Ignoring PR comment from: {} containing phrase: '{}'", commenter, phrase);
+                            break;
+                        }
+                    }
+                }
+                if (containsIgnorePhrase) {
+                    continue;
+                }
+                //Empty comment content to avoid any accidental exposure of sensitive data in reports.
+                content = "";
+                List<ThreadComment> comments = prThreadCommenters.getOrDefault(commenter, new ArrayList<>());
+                comments.add(new ThreadComment(commentPublishedDate, content));
+                prThreadCommenters.put(commenter, comments);
             }
         }
 
         // Add all commenters to the thread object
-        for (Map.Entry<String, String[]> entry : prThreadCommenters.entrySet()) {
+        for (Map.Entry<String, List<ThreadComment>> entry : prThreadCommenters.entrySet()) {
             thread.addCommenter(entry.getKey(), entry.getValue());
         }
 
