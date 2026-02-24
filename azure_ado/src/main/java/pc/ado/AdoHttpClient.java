@@ -78,7 +78,7 @@ public class AdoHttpClient {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != HTTP_OK) {
-                String errorMsg = "API request failed with status code: " + response.statusCode();
+                String errorMsg = "API request failed status code: " + response.statusCode() + ", response body: " + response.body();
                 logger.error(errorMsg + " for URL: {}", url);
                 throw new Exception(errorMsg);
             }

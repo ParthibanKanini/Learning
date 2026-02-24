@@ -1,5 +1,6 @@
 package pc.ado.formatter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -23,49 +24,27 @@ public class TsvIterationFormatter implements IterationFormatter {
     private static final String TAB = "\t";
     private static final String NEWLINE = "\n";
 
+    private final boolean includeCapacities;
+    private final boolean includeWorkItems;
+    private final boolean includePullRequests;
+
+    public TsvIterationFormatter() {
+        this(true, true, true);
+    }
+
+    public TsvIterationFormatter(boolean includeCapacities, boolean includeWorkItems, boolean includePullRequests) {
+        this.includeCapacities = includeCapacities;
+        this.includeWorkItems = includeWorkItems;
+        this.includePullRequests = includePullRequests;
+    }
+
     @Override
     public String format(List<Iteration> iterations) {
         try {
             StringBuilder sb = new StringBuilder();
 
             // Write header
-            sb.append("Project Name").append(TAB)
-                    .append("Team Name").append(TAB)
-                    .append("Iteration Name").append(TAB)
-                    .append("Start Date").append(TAB)
-                    .append("Finish Date").append(TAB)
-                    .append("Member Name").append(TAB)
-                    .append("Capacity").append(TAB)
-                    .append("Days Off").append(TAB)
-                    .append("Worked Days").append(TAB)
-                    .append("Worked Hours").append(TAB)
-                    .append("Planned Release Ver").append(TAB)
-                    .append("Work Item ID").append(TAB)
-                    .append("Work Item Title").append(TAB)
-                    .append("Work Item Type").append(TAB)
-                    .append("Work Item State").append(TAB)
-                    .append("Assigned To").append(TAB)
-                    .append("Story Points").append(TAB)
-                    .append("QA Story Points").append(TAB)
-                    .append("Original Story Points").append(TAB)
-                    .append("Priority").append(TAB)
-                    .append("Severity").append(TAB)
-                    .append("Created Date").append(TAB)
-                    .append("Created By").append(TAB)
-                    .append("Dev End Date").append(TAB)
-                    .append("QA Ready Date").append(TAB)
-                    .append("QA End Date").append(TAB)
-                    .append("Tags").append(TAB)
-                    .append("Has Impl").append(TAB)
-                    .append("Pull Request ID").append(TAB)
-                    .append("PR Created By").append(TAB)
-                    .append("PR Creation Date").append(TAB)
-                    .append("PR Thread ID").append(TAB)
-                    .append("PR Thread Status").append(TAB)
-                    //.append("PR Thread Deleted").append(TAB)
-                    .append("Commenter").append(TAB)
-                    .append("Comment Count").append(TAB)
-                    .append("Comments").append(NEWLINE);
+            appendHeader(sb);
 
             for (Iteration iteration : iterations) {
                 String projectName = iteration.getProjName();
@@ -79,213 +58,138 @@ public class TsvIterationFormatter implements IterationFormatter {
                 boolean hasPullRequests = !iteration.getPullRequests().isEmpty();
 
                 // Write allocation data
-                for (TeamMemberAllocation allocation : iteration.getAllocations()) {
-                    sb.append(projectName).append(TAB)
-                            .append(teamName).append(TAB)
-                            .append(iterationName).append(TAB)
-                            .append(startDate).append(TAB)
-                            .append(finishDate).append(TAB)
-                            .append(allocation.getName()).append(TAB)
-                            .append(allocation.getCapacity()).append(TAB)
-                            .append(allocation.getDaysOff()).append(TAB)
-                            .append(allocation.getWorkedDays()).append(TAB)
-                            .append(allocation.getWorkedHours()).append(TAB)
-                            .append(TAB) // Planned Release Ver
-                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
-                            .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
-                            .append(TAB).append(TAB) // Priority, Severity
-                            .append(TAB).append(TAB) // Created Date, Created By
-                            .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
-                            .append(TAB) // Tags
-                            .append(TAB) // Has Implementation Details
-                            .append(TAB).append(TAB).append(TAB) // PR ID, PR Created By, PR Creation Date
-                            .append(TAB).append(TAB) // PR Thread ID, PR Thread Status
-                            .append(TAB).append(TAB) // Commenter, Comment Count
-                            .append(NEWLINE);
+                if (includeCapacities) {
+                    for (TeamMemberAllocation allocation : iteration.getAllocations()) {
+                        List<String> row = new ArrayList<>();
+                        addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                        addCapacityColumnsForAllocation(row, allocation);
+                        addWorkItemBlanks(row);
+                        addPullRequestBlanks(row);
+                        addTaskBlanks(row);
+                        appendRow(sb, row);
+                    }
                 }
 
                 // Write work item data with their associated PRs
-                for (WorkItem workItem : iteration.getWorkItems()) {
-                    String workItemId = String.valueOf(workItem.getId());
-                    String workItemTitle = workItem.getTitle();
-                    String workItemType = workItem.getType();
-                    String workItemState = workItem.getState();
-                    String assignedTo = workItem.getAssignedTo();
-                    String plannedVersion = workItem.getPlannedVersion();
-                    String storyPoints = workItem.getStoryPoints();
-                    String qaStoryPoints = workItem.getQaStoryPoints();
-                    String originalStoryPoints = workItem.getOriginalStoryPoints();
-                    String priority = workItem.getPriority();
-                    String severity = workItem.getSeverity();
-                    String createdDate = workItem.getCreatedDate();
-                    String createdBy = workItem.getCreatedBy();
-                    String devEndDate = workItem.getDevEndDate();
-                    String qaReadyDate = workItem.getQaReadyDate();
-                    String qaEndDate = workItem.getQaEndDate();
-                    boolean hasImplDetails = workItem.isHasImplementationDetails();
-                    String tags = workItem.getTags();
+                if (includeWorkItems) {
+                    for (WorkItem workItem : iteration.getWorkItems()) {
+                        String workItemId = String.valueOf(workItem.getId());
+                        String workItemTitle = workItem.getTitle();
+                        String workItemType = workItem.getType();
+                        String workItemState = workItem.getState();
+                        String assignedTo = workItem.getAssignedTo();
+                        String plannedVersion = workItem.getPlannedVersion();
+                        String storyPoints = workItem.getStoryPoints();
+                        String qaStoryPoints = workItem.getQaStoryPoints();
+                        String originalStoryPoints = workItem.getOriginalStoryPoints();
+                        String priority = workItem.getPriority();
+                        String severity = workItem.getSeverity();
+                        String createdDate = workItem.getCreatedDate();
+                        String createdBy = workItem.getCreatedBy();
+                        String devEndDate = workItem.getDevEndDate();
+                        String qaReadyDate = workItem.getQaReadyDate();
+                        String qaEndDate = workItem.getQaEndDate();
+                        boolean hasImplDetails = workItem.isHasImplementationDetails();
+                        String tags = workItem.getTags();
+                        boolean hasTasks = !workItem.getTasks().isEmpty();
 
-                    // Check if work item has pull requests
-                    if (workItem.getPullRequests().isEmpty()) {
-                        // Print work item row without PRs
-                        sb.append(projectName).append(TAB)
-                                .append(teamName).append(TAB)
-                                .append(iterationName).append(TAB)
-                                .append(startDate).append(TAB)
-                                .append(finishDate).append(TAB)
-                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
-                                .append(plannedVersion).append(TAB)
-                                .append(workItemId).append(TAB)
-                                .append(workItemTitle).append(TAB)
-                                .append(workItemType).append(TAB)
-                                .append(workItemState).append(TAB)
-                                .append(assignedTo).append(TAB)
-                                .append(storyPoints).append(TAB)
-                                .append(qaStoryPoints).append(TAB)
-                                .append(originalStoryPoints).append(TAB)
-                                .append(priority).append(TAB)
-                                .append(severity).append(TAB)
-                                .append(createdDate).append(TAB)
-                                .append(createdBy).append(TAB)
-                                .append(devEndDate).append(TAB)
-                                .append(qaReadyDate).append(TAB)
-                                .append(qaEndDate).append(TAB)
-                                .append(tags).append(TAB)
-                                .append(hasImplDetails).append(TAB)
-                                .append(TAB).append(TAB).append(TAB) // PR fields
-                                .append(TAB).append(TAB) // Thread fields
-                                .append(TAB).append(TAB) // Commenter fields
-                                .append(NEWLINE);
-                    } else {
-                        // Print work item with each of its PRs
-                        for (PullRequest pr : workItem.getPullRequests()) {
-                            String prId = pr.getPullRequestId();
-                            String prCreatedBy = pr.getCreatedBy();
-                            String prCreationDate = pr.getCreationDate();
+                        if (hasTasks) {
+                            for (WorkItem.Task task : workItem.getTasks()) {
+                                List<String> row = new ArrayList<>();
+                                addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                                addCapacityColumnsForWorkItem(row, plannedVersion);
+                                addWorkItemColumns(row, workItemId, workItemTitle, workItemType, workItemState, assignedTo,
+                                        storyPoints, qaStoryPoints, originalStoryPoints, priority, severity, createdDate,
+                                        createdBy, devEndDate, qaReadyDate, qaEndDate, tags, hasImplDetails);
+                                addPullRequestBlanks(row);
+                                addTaskColumns(row, task);
+                                appendRow(sb, row);
+                            }
+                        }
 
-                            if (pr.getThreads().isEmpty()) {
-                                // PR with no threads
-                                sb.append(projectName).append(TAB)
-                                        .append(teamName).append(TAB)
-                                        .append(iterationName).append(TAB)
-                                        .append(startDate).append(TAB)
-                                        .append(finishDate).append(TAB)
-                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
-                                        .append(plannedVersion).append(TAB)
-                                        .append(workItemId).append(TAB)
-                                        .append(workItemTitle).append(TAB)
-                                        .append(workItemType).append(TAB)
-                                        .append(workItemState).append(TAB)
-                                        .append(assignedTo).append(TAB)
-                                        .append(storyPoints).append(TAB)
-                                        .append(qaStoryPoints).append(TAB)
-                                        .append(originalStoryPoints).append(TAB)
-                                        .append(priority).append(TAB)
-                                        .append(severity).append(TAB)
-                                        .append(createdDate).append(TAB)
-                                        .append(createdBy).append(TAB)
-                                        .append(devEndDate).append(TAB)
-                                        .append(qaReadyDate).append(TAB)
-                                        .append(qaEndDate).append(TAB)
-                                        .append(tags).append(TAB)
-                                        .append(hasImplDetails).append(TAB)
-                                        .append(prId).append(TAB)
-                                        .append(prCreatedBy).append(TAB)
-                                        .append(prCreationDate).append(TAB)
-                                        .append(TAB).append(TAB) // Thread fields
-                                        .append(TAB).append(TAB) // Commenter fields
-                                        .append(NEWLINE);
-                            } else {
-                                // PR with threads
-                                for (PullRequestThread thread : pr.getThreads()) {
-                                    String threadId = thread.getThreadId();
-                                    String threadStatus = thread.getStatus();
-                                    //String isDeleted = String.valueOf(thread.isDeleted());
+                        if (!includePullRequests || workItem.getPullRequests().isEmpty()) {
+                            if (!hasTasks) {
+                                // Print work item row without PRs
+                                List<String> row = new ArrayList<>();
+                                addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                                addCapacityColumnsForWorkItem(row, plannedVersion);
+                                addWorkItemColumns(row, workItemId, workItemTitle, workItemType, workItemState, assignedTo,
+                                        storyPoints, qaStoryPoints, originalStoryPoints, priority, severity, createdDate,
+                                        createdBy, devEndDate, qaReadyDate, qaEndDate, tags, hasImplDetails);
+                                addPullRequestBlanks(row);
+                                addTaskBlanks(row);
+                                appendRow(sb, row);
+                            }
+                        } else {
+                            // Print work item with each of its PRs
+                            for (PullRequest pr : workItem.getPullRequests()) {
+                                String prId = pr.getPullRequestId();
+                                String prCreatedBy = pr.getCreatedBy();
+                                String prCreationDate = pr.getCreationDate();
 
-                                    if (thread.getCommenters().isEmpty()) {
-                                        // Thread with no commenters
-                                        sb.append(projectName).append(TAB)
-                                                .append(teamName).append(TAB)
-                                                .append(iterationName).append(TAB)
-                                                .append(startDate).append(TAB)
-                                                .append(finishDate).append(TAB)
-                                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
-                                                .append(plannedVersion).append(TAB)
-                                                .append(workItemId).append(TAB)
-                                                .append(workItemTitle).append(TAB)
-                                                .append(workItemType).append(TAB)
-                                                .append(workItemState).append(TAB)
-                                                .append(assignedTo).append(TAB)
-                                                .append(storyPoints).append(TAB)
-                                                .append(qaStoryPoints).append(TAB)
-                                                .append(originalStoryPoints).append(TAB)
-                                                .append(priority).append(TAB)
-                                                .append(severity).append(TAB)
-                                                .append(createdDate).append(TAB)
-                                                .append(createdBy).append(TAB)
-                                                .append(devEndDate).append(TAB)
-                                                .append(qaReadyDate).append(TAB)
-                                                .append(qaEndDate).append(TAB)
-                                                .append(tags).append(TAB)
-                                                .append(hasImplDetails).append(TAB)
-                                                .append(prId).append(TAB)
-                                                .append(prCreatedBy).append(TAB)
-                                                .append(prCreationDate).append(TAB)
-                                                .append(threadId).append(TAB)
-                                                .append(threadStatus).append(TAB)
-                                                .append(TAB).append(TAB).append(TAB) // Commenter fields (name, count, comments)
-                                                .append(NEWLINE);
-                                    } else {
-                                        // Thread with commenters
-                                        for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
-                                            String commenterName = commenter.getKey();
-                                            List<ThreadComment> comments = commenter.getValue();
-                                            int commentCount = comments.size();
+                                if (pr.getThreads().isEmpty()) {
+                                    // PR with no threads
+                                    List<String> row = new ArrayList<>();
+                                    addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                                    addCapacityColumnsForWorkItem(row, plannedVersion);
+                                    addWorkItemColumns(row, workItemId, workItemTitle, workItemType, workItemState,
+                                            assignedTo, storyPoints, qaStoryPoints, originalStoryPoints, priority,
+                                            severity, createdDate, createdBy, devEndDate, qaReadyDate, qaEndDate, tags,
+                                            hasImplDetails);
+                                    addPullRequestColumns(row, prId, prCreatedBy, prCreationDate, "", "", "", "", "");
+                                    addTaskBlanks(row);
+                                    appendRow(sb, row);
+                                } else {
+                                    // PR with threads
+                                    for (PullRequestThread thread : pr.getThreads()) {
+                                        String threadId = thread.getThreadId();
+                                        String threadStatus = thread.getStatus();
 
-                                            // Format comments: enclose each in quotes and join with " - "
-                                            StringBuilder commentsBuilder = new StringBuilder();
-                                            for (int i = 0; i < comments.size(); i++) {
-                                                if (i > 0) {
-                                                    commentsBuilder.append(" - ");
+                                        if (thread.getCommenters().isEmpty()) {
+                                            // Thread with no commenters
+                                            List<String> row = new ArrayList<>();
+                                            addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                                            addCapacityColumnsForWorkItem(row, plannedVersion);
+                                            addWorkItemColumns(row, workItemId, workItemTitle, workItemType, workItemState,
+                                                    assignedTo, storyPoints, qaStoryPoints, originalStoryPoints, priority,
+                                                    severity, createdDate, createdBy, devEndDate, qaReadyDate, qaEndDate,
+                                                    tags, hasImplDetails);
+                                            addPullRequestColumns(row, prId, prCreatedBy, prCreationDate, threadId,
+                                                    threadStatus, "", "", "");
+                                            addTaskBlanks(row);
+                                            appendRow(sb, row);
+                                        } else {
+                                            // Thread with commenters
+                                            for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
+                                                String commenterName = commenter.getKey();
+                                                List<ThreadComment> comments = commenter.getValue();
+                                                int commentCount = comments.size();
+
+                                                // Format comments: enclose each in quotes and join with " - "
+                                                StringBuilder commentsBuilder = new StringBuilder();
+                                                for (int i = 0; i < comments.size(); i++) {
+                                                    if (i > 0) {
+                                                        commentsBuilder.append(" - ");
+                                                    }
+                                                    commentsBuilder.append("\"")
+                                                            .append(comments.get(i).getCommentContent())
+                                                            .append("\"");
                                                 }
-                                                commentsBuilder.append("\"").append(comments.get(i).getCommentContent()).append("\"");
-                                            }
-                                            String formattedComments = commentsBuilder.toString();
+                                                String formattedComments = commentsBuilder.toString();
 
-                                            sb.append(projectName).append(TAB)
-                                                    .append(teamName).append(TAB)
-                                                    .append(iterationName).append(TAB)
-                                                    .append(startDate).append(TAB)
-                                                    .append(finishDate).append(TAB)
-                                                    .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
-                                                    .append(plannedVersion).append(TAB)
-                                                    .append(workItemId).append(TAB)
-                                                    .append(workItemTitle).append(TAB)
-                                                    .append(workItemType).append(TAB)
-                                                    .append(workItemState).append(TAB)
-                                                    .append(assignedTo).append(TAB)
-                                                    .append(storyPoints).append(TAB)
-                                                    .append(qaStoryPoints).append(TAB)
-                                                    .append(originalStoryPoints).append(TAB)
-                                                    .append(priority).append(TAB)
-                                                    .append(severity).append(TAB)
-                                                    .append(createdDate).append(TAB)
-                                                    .append(createdBy).append(TAB)
-                                                    .append(devEndDate).append(TAB)
-                                                    .append(qaReadyDate).append(TAB)
-                                                    .append(qaEndDate).append(TAB)
-                                                    .append(tags).append(TAB)
-                                                    .append(hasImplDetails).append(TAB)
-                                                    .append(prId).append(TAB)
-                                                    .append(prCreatedBy).append(TAB)
-                                                    .append(prCreationDate).append(TAB)
-                                                    .append(threadId).append(TAB)
-                                                    .append(threadStatus).append(TAB)
-                                                    //.append(isDeleted).append(TAB)
-                                                    .append(commenterName).append(TAB)
-                                                    .append(commentCount).append(TAB)
-                                                    .append(formattedComments)
-                                                    .append(NEWLINE);
+                                                List<String> row = new ArrayList<>();
+                                                addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                                                addCapacityColumnsForWorkItem(row, plannedVersion);
+                                                addWorkItemColumns(row, workItemId, workItemTitle, workItemType,
+                                                        workItemState, assignedTo, storyPoints, qaStoryPoints,
+                                                        originalStoryPoints, priority, severity, createdDate, createdBy,
+                                                        devEndDate, qaReadyDate, qaEndDate, tags, hasImplDetails);
+                                                addPullRequestColumns(row, prId, prCreatedBy, prCreationDate, threadId,
+                                                        threadStatus, commenterName, String.valueOf(commentCount),
+                                                        formattedComments);
+                                                addTaskBlanks(row);
+                                                appendRow(sb, row);
+                                            }
                                         }
                                     }
                                 }
@@ -297,117 +201,76 @@ public class TsvIterationFormatter implements IterationFormatter {
                 // Write any PRs that are not associated with work items (at iteration level)
                 // NOTE: Since we now collect PRs from work items and add them to iteration,
                 // this section handles orphaned PRs only (if any exist at iteration level)
-                for (PullRequest pr : iteration.getPullRequests()) {
-                    // Skip PRs that are already processed from work items
-                    boolean isProcessed = false;
-                    for (WorkItem wi : iteration.getWorkItems()) {
-                        if (wi.getPullRequests().contains(pr)) {
-                            isProcessed = true;
-                            break;
+                if (includePullRequests) {
+                    for (PullRequest pr : iteration.getPullRequests()) {
+                        // Skip PRs that are already processed from work items
+                        boolean isProcessed = false;
+                        for (WorkItem wi : iteration.getWorkItems()) {
+                            if (wi.getPullRequests().contains(pr)) {
+                                isProcessed = true;
+                                break;
+                            }
                         }
-                    }
-                    if (isProcessed) {
-                        continue;
-                    }
+                        if (isProcessed) {
+                            continue;
+                        }
 
-                    String prId = pr.getPullRequestId();
-                    String prCreatedBy = pr.getCreatedBy();
-                    String prCreationDate = pr.getCreationDate();
+                        String prId = pr.getPullRequestId();
+                        String prCreatedBy = pr.getCreatedBy();
+                        String prCreationDate = pr.getCreationDate();
 
-                    if (pr.getThreads().isEmpty()) {
-                        // PR with no threads
-                        sb.append(projectName).append(TAB)
-                                .append(teamName).append(TAB)
-                                .append(iterationName).append(TAB)
-                                .append(startDate).append(TAB)
-                                .append(finishDate).append(TAB)
-                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
-                                .append(TAB) // Planned Release Ver
-                                .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
-                                .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
-                                .append(TAB).append(TAB) // Priority, Severity
-                                .append(TAB).append(TAB) // Created Date, Created By
-                                .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
-                                .append(TAB) // Tags
-                                .append(TAB) // Has Implementation Details
-                                .append(prId).append(TAB)
-                                .append(prCreatedBy).append(TAB)
-                                .append(prCreationDate).append(TAB)
-                                .append(TAB).append(TAB) // Thread fields
-                                .append(TAB).append(TAB) // Commenter fields
-                                .append(NEWLINE);
-                    } else {
-                        // PR with threads
-                        for (PullRequestThread thread : pr.getThreads()) {
-                            String threadId = thread.getThreadId();
-                            String threadStatus = thread.getStatus();
-                            String isDeleted = String.valueOf(thread.isDeleted());
+                        if (pr.getThreads().isEmpty()) {
+                            // PR with no threads
+                            List<String> row = new ArrayList<>();
+                            addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                            addCapacityBlanks(row);
+                            addWorkItemBlanks(row);
+                            addPullRequestColumns(row, prId, prCreatedBy, prCreationDate, "", "", "", "", "");
+                            addTaskBlanks(row);
+                            appendRow(sb, row);
+                        } else {
+                            // PR with threads
+                            for (PullRequestThread thread : pr.getThreads()) {
+                                String threadId = thread.getThreadId();
+                                String threadStatus = thread.getStatus();
 
-                            if (thread.getCommenters().isEmpty()) {
-                                // Thread with no commenters
-                                sb.append(projectName).append(TAB)
-                                        .append(teamName).append(TAB)
-                                        .append(iterationName).append(TAB)
-                                        .append(startDate).append(TAB)
-                                        .append(finishDate).append(TAB)
-                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
-                                        .append(TAB) // Planned Release Ver
-                                        .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
-                                        .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
-                                        .append(TAB).append(TAB) // Priority, Severity
-                                        .append(TAB).append(TAB) // Created Date, Created By
-                                        .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
-                                        .append(TAB) // Tags
-                                        .append(TAB) // Has Implementation Details
-                                        .append(prId).append(TAB)
-                                        .append(prCreatedBy).append(TAB)
-                                        .append(prCreationDate).append(TAB)
-                                        .append(threadId).append(TAB)
-                                        .append(threadStatus).append(TAB)
-                                        //.append(isDeleted).append(TAB)
-                                        .append(TAB).append(TAB).append(TAB) // Commenter fields (name, count, comments)
-                                        .append(NEWLINE);
-                            } else {
-                                // Thread with commenters
-                                for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
-                                    String commenterName = commenter.getKey();
-                                    List<ThreadComment> comments = commenter.getValue();
-                                    int commentCount = comments.size();
+                                if (thread.getCommenters().isEmpty()) {
+                                    // Thread with no commenters
+                                    List<String> row = new ArrayList<>();
+                                    addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                                    addCapacityBlanks(row);
+                                    addWorkItemBlanks(row);
+                                    addPullRequestColumns(row, prId, prCreatedBy, prCreationDate, threadId, threadStatus,
+                                            "", "", "");
+                                    addTaskBlanks(row);
+                                    appendRow(sb, row);
+                                } else {
+                                    // Thread with commenters
+                                    for (Map.Entry<String, List<ThreadComment>> commenter : thread.getCommenters().entrySet()) {
+                                        String commenterName = commenter.getKey();
+                                        List<ThreadComment> comments = commenter.getValue();
+                                        int commentCount = comments.size();
 
-                                    // Format comments: enclose each in quotes and join with " - "
-                                    StringBuilder commentsBuilder = new StringBuilder();
-                                    for (int i = 0; i < comments.size(); i++) {
-                                        if (i > 0) {
-                                            commentsBuilder.append(" - ");
+                                        // Format comments: enclose each in quotes and join with " - "
+                                        StringBuilder commentsBuilder = new StringBuilder();
+                                        for (int i = 0; i < comments.size(); i++) {
+                                            if (i > 0) {
+                                                commentsBuilder.append(" - ");
+                                            }
+                                            commentsBuilder.append("\"").append(comments.get(i).getCommentContent()).append("\"");
                                         }
-                                        commentsBuilder.append("\"").append(comments.get(i).getCommentContent()).append("\"");
-                                    }
-                                    String formattedComments = commentsBuilder.toString();
+                                        String formattedComments = commentsBuilder.toString();
 
-                                    sb.append(projectName).append(TAB)
-                                            .append(teamName).append(TAB)
-                                            .append(iterationName).append(TAB)
-                                            .append(startDate).append(TAB)
-                                            .append(finishDate).append(TAB)
-                                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // Allocation fields
-                                            .append(TAB) // Planned Release Ver
-                                            .append(TAB).append(TAB).append(TAB).append(TAB).append(TAB) // WI ID, Title, Type, State, Assigned To
-                                            .append(TAB).append(TAB).append(TAB) // Story Points, QA Story Points, Original Story Points
-                                            .append(TAB).append(TAB) // Priority, Severity
-                                            .append(TAB).append(TAB) // Created Date, Created By
-                                            .append(TAB).append(TAB).append(TAB) // Dev End Date, QA Ready Date, QA End Date
-                                            .append(TAB) // Tags
-                                            .append(TAB) // Has Implementation Details
-                                            .append(prId).append(TAB)
-                                            .append(prCreatedBy).append(TAB)
-                                            .append(prCreationDate).append(TAB)
-                                            .append(threadId).append(TAB)
-                                            .append(threadStatus).append(TAB)
-                                            .append(isDeleted).append(TAB)
-                                            .append(commenterName).append(TAB)
-                                            .append(commentCount).append(TAB)
-                                            .append(formattedComments)
-                                            .append(NEWLINE);
+                                        List<String> row = new ArrayList<>();
+                                        addBaseColumns(row, projectName, teamName, iterationName, startDate, finishDate);
+                                        addCapacityBlanks(row);
+                                        addWorkItemBlanks(row);
+                                        addPullRequestColumns(row, prId, prCreatedBy, prCreationDate, threadId,
+                                                threadStatus, commenterName, String.valueOf(commentCount),
+                                                formattedComments);
+                                        addTaskBlanks(row);
+                                        appendRow(sb, row);
+                                    }
                                 }
                             }
                         }
@@ -425,5 +288,218 @@ public class TsvIterationFormatter implements IterationFormatter {
             logger.error("Error occurred while formatting iterations to TSV", e);
             return "";
         }
+    }
+
+    private void appendHeader(StringBuilder sb) {
+        List<String> header = new ArrayList<>();
+        addBaseColumns(header, "Project Name", "Team Name", "Iteration Name", "Start Date", "Finish Date");
+        if (includeCapacities) {
+            header.add("Member Name");
+            header.add("Capacity");
+            header.add("Days Off");
+            header.add("Worked Days");
+            header.add("Worked Hours");
+            if (includeWorkItems) {
+                header.add("Planned Release Ver");
+            }
+        }
+        if (includeWorkItems) {
+            header.add("Work Item ID");
+            header.add("Work Item Title");
+            header.add("Work Item Type");
+            header.add("Work Item State");
+            header.add("Assigned To");
+            header.add("Story Points");
+            header.add("QA Story Points");
+            header.add("Original Story Points");
+            header.add("Priority");
+            header.add("Severity");
+            header.add("Created Date");
+            header.add("Created By");
+            header.add("Dev End Date");
+            header.add("QA Ready Date");
+            header.add("QA End Date");
+            header.add("Tags");
+            header.add("Has Impl");
+        }
+        if (includePullRequests) {
+            header.add("Pull Request ID");
+            header.add("PR Created By");
+            header.add("PR Creation Date");
+            header.add("PR Thread ID");
+            header.add("PR Thread Status");
+            header.add("Commenter");
+            header.add("Comment Count");
+            header.add("Comments");
+        }
+        if (includeWorkItems) {
+            header.add("Task Work item ID");
+            header.add("Task Type");
+            header.add("State");
+            header.add("Assigned To");
+            header.add("Original Estimate");
+            header.add("Remaining Hrs");
+            header.add("Completed Hrs");
+        }
+        appendRow(sb, header);
+    }
+
+    private void appendRow(StringBuilder sb, List<String> columns) {
+        sb.append(String.join(TAB, columns)).append(NEWLINE);
+    }
+
+    private void addBaseColumns(List<String> columns, String projectName, String teamName, String iterationName,
+            String startDate, String finishDate) {
+        columns.add(String.valueOf(projectName));
+        columns.add(String.valueOf(teamName));
+        columns.add(String.valueOf(iterationName));
+        columns.add(String.valueOf(startDate));
+        columns.add(String.valueOf(finishDate));
+    }
+
+    private void addCapacityColumnsForAllocation(List<String> columns, TeamMemberAllocation allocation) {
+        if (!includeCapacities) {
+            return;
+        }
+        columns.add(String.valueOf(allocation.getName()));
+        columns.add(String.valueOf(allocation.getCapacity()));
+        columns.add(String.valueOf(allocation.getDaysOff()));
+        columns.add(String.valueOf(allocation.getWorkedDays()));
+        columns.add(String.valueOf(allocation.getWorkedHours()));
+        if (includeWorkItems) {
+            columns.add("");
+        }
+    }
+
+    private void addCapacityColumnsForWorkItem(List<String> columns, String plannedVersion) {
+        if (!includeCapacities) {
+            return;
+        }
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        if (includeWorkItems) {
+            columns.add(String.valueOf(plannedVersion));
+        }
+    }
+
+    private void addCapacityBlanks(List<String> columns) {
+        if (!includeCapacities) {
+            return;
+        }
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        if (includeWorkItems) {
+            columns.add("");
+        }
+    }
+
+    private void addWorkItemColumns(List<String> columns, String workItemId, String workItemTitle, String workItemType,
+            String workItemState, String assignedTo, String storyPoints, String qaStoryPoints,
+            String originalStoryPoints, String priority, String severity, String createdDate, String createdBy,
+            String devEndDate, String qaReadyDate, String qaEndDate, String tags, boolean hasImplDetails) {
+        if (!includeWorkItems) {
+            return;
+        }
+        columns.add(String.valueOf(workItemId));
+        columns.add(String.valueOf(workItemTitle));
+        columns.add(String.valueOf(workItemType));
+        columns.add(String.valueOf(workItemState));
+        columns.add(String.valueOf(assignedTo));
+        columns.add(String.valueOf(storyPoints));
+        columns.add(String.valueOf(qaStoryPoints));
+        columns.add(String.valueOf(originalStoryPoints));
+        columns.add(String.valueOf(priority));
+        columns.add(String.valueOf(severity));
+        columns.add(String.valueOf(createdDate));
+        columns.add(String.valueOf(createdBy));
+        columns.add(String.valueOf(devEndDate));
+        columns.add(String.valueOf(qaReadyDate));
+        columns.add(String.valueOf(qaEndDate));
+        columns.add(String.valueOf(tags));
+        columns.add(String.valueOf(hasImplDetails));
+    }
+
+    private void addWorkItemBlanks(List<String> columns) {
+        if (!includeWorkItems) {
+            return;
+        }
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+    }
+
+    private void addPullRequestColumns(List<String> columns, String prId, String prCreatedBy, String prCreationDate,
+            String threadId, String threadStatus, String commenterName, String commentCount, String comments) {
+        if (!includePullRequests) {
+            return;
+        }
+        columns.add(String.valueOf(prId));
+        columns.add(String.valueOf(prCreatedBy));
+        columns.add(String.valueOf(prCreationDate));
+        columns.add(String.valueOf(threadId));
+        columns.add(String.valueOf(threadStatus));
+        columns.add(String.valueOf(commenterName));
+        columns.add(String.valueOf(commentCount));
+        columns.add(String.valueOf(comments));
+    }
+
+    private void addPullRequestBlanks(List<String> columns) {
+        if (!includePullRequests) {
+            return;
+        }
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+    }
+
+    private void addTaskColumns(List<String> columns, WorkItem.Task task) {
+        if (!includeWorkItems) {
+            return;
+        }
+        columns.add(String.valueOf(task.getTaskId()));
+        columns.add(String.valueOf(task.getTaskType()));
+        columns.add(String.valueOf(task.getState()));
+        columns.add(String.valueOf(task.getAssignedTo()));
+        columns.add(String.valueOf(task.getOriginalEstimate()));
+        columns.add(String.valueOf(task.getRemainingWork()));
+        columns.add(String.valueOf(task.getCompletedWork()));
+    }
+
+    private void addTaskBlanks(List<String> columns) {
+        if (!includeWorkItems) {
+            return;
+        }
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
+        columns.add("");
     }
 }

@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +53,7 @@ public class DateUtils {
     public static int calculateWeekDays(LocalDate start, LocalDate finish, int holidays) {
         logger.trace("Start Date {} - Finish Date {} - Holidays {}", start, finish, holidays);
         try {
-            int workedDays = weekDaysBetween(start, finish) - holidays;
+            int workedDays = countWeekDaysBetween(start, finish) - holidays;
             logger.trace("Calculated worked days: {}", workedDays);
             return Math.max(0, workedDays); // Return at least 0
         } catch (Exception e) {
@@ -98,14 +100,14 @@ public class DateUtils {
     }
 
     /**
-     * Calculates the number of week days between two dates. Ignores Saturday &
+     * Counts the number of week days between two dates. Ignores Saturday &
      * Sunday.
      *
      * @param start the start date
      * @param finish the finish date
      * @return the count of week days
      */
-    private static int weekDaysBetween(LocalDate start, LocalDate finish) {
+    private static int countWeekDaysBetween(LocalDate start, LocalDate finish) {
         // Counting weekend days
         LocalDate current = start;
         int weekendDays = 0;
@@ -118,6 +120,29 @@ public class DateUtils {
         }
         long totalDays = ChronoUnit.DAYS.between(start, finish) + 1;
         return (int) (totalDays - weekendDays);
+    }
+
+    /**
+     * Returns a set of all weekdays (Monday-Friday) between two dates,
+     * inclusive.
+     */
+    public static Set<LocalDate> getWeekDaysBetween(LocalDate start, LocalDate end) {
+        Set<LocalDate> days = new HashSet<>();
+        if (start == null || end == null || end.isBefore(start)) {
+            return days;
+        }
+        LocalDate current = start;
+        while (!current.isAfter(end)) {
+            switch (current.getDayOfWeek()) {
+                // skip weekends
+                case MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY ->
+                    days.add(current);
+                default -> {
+                }
+            }
+            current = current.plusDays(1);
+        }
+        return days;
     }
 
 }

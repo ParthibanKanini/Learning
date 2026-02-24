@@ -6,8 +6,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -66,12 +68,14 @@ public class AdoApiClient {
                     LocalDate itrFinishDate = DateUtils.formatISODateToLocalDate(rawFinishDate);
                     LocalDate ignoreBeforeDate = config.getIgnoreIterationsEndedBefore();
                     if (ignoreBeforeDate != null && itrFinishDate.isBefore(ignoreBeforeDate)) {
-                        logger.debug("Ignoring iteration '{}:{}' as it ended before {}", itr.getName(), itrFinishDate, ignoreBeforeDate);
+                        logger.trace("Ignoring iteration '{}:{}' as it ended before {}", itr.getName(), itrFinishDate, ignoreBeforeDate);
                         continue;
+                    } else {
+                        logger.trace("Including iteration '{}:{}' as it ended after {}", itr.getName(), itrFinishDate, ignoreBeforeDate);
                     }
                 }
                 // Filter by Iteration name if provided else add all iterations
-                if (itrNames == null || itrNames.isEmpty() || itrNames.contains(itr.getName())) {
+                if (itrNames.isEmpty() || itrNames.contains(itr.getName())) {
                     iterations.add(itr);
                 }
             }
@@ -98,20 +102,10 @@ public class AdoApiClient {
             // Get team holidays for the iteration
             String url = teamUri + "/" + (config.getIterationDayOffPath().replace("{iterationId}", iterationId)) + "?api-version=" + config.getApiVersion();
             String response = httpClient.get(url);
-            //logger.trace("Iteration Day Off response: {}", response);
             JSONObject jsonResponse = new JSONObject(response);
 
-            int teamHolidays = 0;
             JSONArray teamDaysOff = jsonResponse.getJSONArray("daysOff");
-            for (int i = 0; i < teamDaysOff.length(); i++) {
-                JSONObject dayOff = teamDaysOff.getJSONObject(i);
-                String startDate = dayOff.getString("start");
-                String endDate = dayOff.getString("end");
-                int weekDayHoliday = DateUtils.calculateWeekDays(DateUtils.formatISODateToLocalDate(startDate), DateUtils.formatISODateToLocalDate(endDate));
-                //logger.debug("Team Day Off from {} to {} : {} days", startDate, endDate, days);
-                teamHolidays += weekDayHoliday;
-            }
-            logger.trace("teamHolidays: {} - {}", teamHolidays, jsonResponse.toString());
+            logger.trace("teamDaysOff: {}", jsonResponse.toString());
 
             // Team members details
             url = teamUri + "/" + capacitiesPath + "?api-version=" + config.getApiVersion();
@@ -122,7 +116,7 @@ public class AdoApiClient {
             List<TeamMemberCapacity> capacities = new ArrayList<>();
             for (int i = 0; i < teamMembersArray.length(); i++) {
                 JSONObject teamMember = teamMembersArray.getJSONObject(i);
-                TeamMemberCapacity capacity = parseTeamMemberCapacity(teamMember, teamHolidays);
+                TeamMemberCapacity capacity = parseTeamMemberCapacity(teamMember, teamDaysOff);
                 if (capacity != null && capacity.getCapacityPerDay() > 0) {
                     capacities.add(capacity);
                 }
@@ -166,27 +160,42 @@ public class AdoApiClient {
      * @param teamHolidays
      * @return
      */
-    private TeamMemberCapacity parseTeamMemberCapacity(JSONObject teamMemberJson, int teamHolidays) {
+    private TeamMemberCapacity parseTeamMemberCapacity(JSONObject teamMemberJson, JSONArray teamDaysOff) {
         try {
             JSONObject teamMember = teamMemberJson.getJSONObject("teamMember");
             String displayName = teamMember.getString("displayName");
             JSONArray activities = teamMemberJson.getJSONArray("activities");
-            int teamMemberPTO = 0;
-            // Iterate daysoff array and extract start and end date to calculate total holidays using daysbetween function
+
+            // Collect all unique days off (team + member)
+            Set<LocalDate> uniqueDaysOff = new HashSet<>();
+
+            // Add team holidays
+            if (teamDaysOff != null) {
+                for (int i = 0; i < teamDaysOff.length(); i++) {
+                    JSONObject dayOff = teamDaysOff.getJSONObject(i);
+                    LocalDate start = DateUtils.formatISODateToLocalDate(dayOff.getString("start"));
+                    LocalDate end = DateUtils.formatISODateToLocalDate(dayOff.getString("end"));
+                    uniqueDaysOff.addAll(DateUtils.getWeekDaysBetween(start, end));
+                }
+            }
+
+            // Add member PTO
             JSONArray teamMemberSprintdaysOff = teamMemberJson.getJSONArray("daysOff");
             for (int i = 0; i < teamMemberSprintdaysOff.length(); i++) {
                 JSONObject dayOff = teamMemberSprintdaysOff.getJSONObject(i);
-                String startDate = dayOff.getString("start");
-                String endDate = dayOff.getString("end");
-                teamMemberPTO += DateUtils.calculateWeekDays(DateUtils.formatISODateToLocalDate(startDate), DateUtils.formatISODateToLocalDate(endDate));
-                logger.trace("Team Member '{}' Day Off from {} to {} = {} days.", displayName, startDate, endDate, teamMemberPTO);
+                LocalDate start = DateUtils.formatISODateToLocalDate(dayOff.getString("start"));
+                LocalDate end = DateUtils.formatISODateToLocalDate(dayOff.getString("end"));
+                uniqueDaysOff.addAll(DateUtils.getWeekDaysBetween(start, end));
             }
+
+            int totalDaysOff = uniqueDaysOff.size();
+
             for (int i = 0; i < activities.length(); i++) {
                 JSONObject activity = activities.getJSONObject(i);
                 double capacityPerDay = activity.optDouble("capacityPerDay", 0);
                 if (capacityPerDay > 0) {
-                    logger.trace("'{}' had PTO {} days & Team Holiday {} days.", displayName, teamMemberPTO, teamHolidays);
-                    return new TeamMemberCapacity(displayName, capacityPerDay, teamMemberPTO + teamHolidays);
+                    logger.trace("'{}' unique days off: {}", displayName, totalDaysOff);
+                    return new TeamMemberCapacity(displayName, capacityPerDay, totalDaysOff);
                 }
             }
         } catch (JSONException e) {
@@ -250,7 +259,7 @@ public class AdoApiClient {
     }
 
     /**
-     * Retrieves and logs fields for a given work item.
+     * Retrieves and logs fields for a given work item(story level).
      *
      * @param project
      * @param team
@@ -304,7 +313,7 @@ public class AdoApiClient {
 
                 populateWorkItemChildren(project, id, workItem);
                 iteration.addWorkItem(workItem);
-                logger.debug("  Added work item {} in {} state to iteration {}", id, state, iteration.getName());
+                logger.trace("  Added work item {} in {} state to iteration {}", id, state, iteration.getName());
             }
         } else {
             logger.warn("No fields found for work item ID: {}", id);
@@ -344,7 +353,7 @@ public class AdoApiClient {
                 }
             }
         }
-        logger.debug("      Total tasks added to work item {}: {}", workItemId, totalTasksAdded);
+        logger.trace("      Total tasks added to work item {}: {}", workItemId, totalTasksAdded);
     }
 
     /**
@@ -448,10 +457,23 @@ public class AdoApiClient {
         JSONObject taskJsonResponse = new JSONObject(taskResponse);
         //logger.trace(taskJsonResponse.toString());
         JSONObject fields = taskJsonResponse.optJSONObject("fields");
+        // log fields for debugging
+        logger.trace("    Task URL: {} - Fields: {}", taskUrl, (fields != null) ? fields.toString() : "No fields found");
         if (fields == null) {
             return taskAdded;
         }
+        String taskId = extractWorkItemIdFromUrl(taskUrl);
         String workItemType = fields.optString("System.WorkItemType");
+        String tags = fields.optString("System.Tags");
+        // Skip tasks with Copilot tag if exclusion is enabled in config
+        // Exclude tasks with Copilot tag (case-insensitive, supports variations like co-pilot, co pilot)
+        if (config.isFetchWorkItemDetailsTasksCopilotTagExclusion() && tags != null) {
+            String tagsLower = tags.toLowerCase();
+            if (tagsLower.contains("copilot") || tagsLower.contains("co-pilot") || tagsLower.contains("co pilot")) {
+                logger.debug("    Skipping task {} as it is tagged with {} or a similar variation", taskId, tags);
+                return taskAdded;
+            }
+        }
         if (workItemType.equals("Task")) {
             String taskState = fields.optString("System.State");
             String taskType = fields.optString("Microsoft.VSTS.Common.Activity");
@@ -461,7 +483,6 @@ public class AdoApiClient {
             String completedHrs = fields.optString("Microsoft.VSTS.Scheduling.CompletedWork");
             //TODO: Test Remaining hrs
             String remainingHrs = fields.optString("Microsoft.VSTS.Scheduling.RemainingWork");
-
             /*tasks []
                     ID
                     remaining hrs
@@ -475,11 +496,33 @@ public class AdoApiClient {
                     taskType, taskState, assignedTo, originalEstimate, remainingHrs, completedHrs);
 
             // Create Task DTO and add to WorkItem
-            WorkItem.Task task = new WorkItem.Task(taskType, taskState, assignedTo, originalEstimate, remainingHrs, completedHrs);
+            WorkItem.Task task = new WorkItem.Task(taskId, taskType, taskState, assignedTo, originalEstimate, remainingHrs, completedHrs);
             workItem.addTask(task);
             taskAdded = 1;
         }
         return taskAdded;
+    }
+
+    private String extractWorkItemIdFromUrl(String workItemUrl) {
+        if (workItemUrl == null || workItemUrl.isBlank()) {
+            return "N/A";
+        }
+        String url = workItemUrl;
+        int queryIndex = url.indexOf("?");
+        if (queryIndex >= 0) {
+            url = url.substring(0, queryIndex);
+        }
+        int lastSlash = url.lastIndexOf("/");
+        if (lastSlash < 0 || lastSlash == url.length() - 1) {
+            return "N/A";
+        }
+        String idPart = url.substring(lastSlash + 1);
+        try {
+            Integer.parseInt(idPart);
+            return idPart;
+        } catch (NumberFormatException e) {
+            return "N/A";
+        }
     }
 
     /**

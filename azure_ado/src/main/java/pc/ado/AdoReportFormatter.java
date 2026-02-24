@@ -26,7 +26,7 @@ public class AdoReportFormatter {
     public AdoReportFormatter(AdoConfig config) {
         this.outputFilePath = config.getSprintCapacityDetailsFilePath();
         String formatterType = config.getOutputFormatterType();
-        this.iterationFormatter = IterationFormatterFactory.createFormatter(formatterType);
+        this.iterationFormatter = IterationFormatterFactory.createFormatter(formatterType, config);
         logger.info("Report formatter initialized with output file: {} and formatter type: {}",
                 outputFilePath, formatterType);
     }

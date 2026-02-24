@@ -3,6 +3,8 @@ package pc.ado.formatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import pc.ado.AdoConfig;
+
 /**
  * Factory for creating appropriate iteration formatters based on format type.
  */
@@ -57,6 +59,26 @@ public class IterationFormatterFactory {
     }
 
     /**
+     * Creates an appropriate formatter based on the specified type and config.
+     *
+     * @param formatterType the type of formatter to create
+     * @param config configuration flags used by the formatter
+     * @return the appropriate IterationFormatter implementation
+     */
+    public static IterationFormatter createFormatter(FormatterType formatterType, AdoConfig config) {
+        switch (formatterType) {
+            case TSV:
+                logger.debug("Creating TSV formatter with config");
+                return new TsvIterationFormatter(config.isFetchCapacities(), config.isFetchWorkItemDetails(),
+                        config.isFetchWorkItemPullRequests());
+            case JSON:
+            default:
+                logger.debug("Creating JSON formatter");
+                return new JsonIterationFormatter();
+        }
+    }
+
+    /**
      * Creates an appropriate formatter based on the specified type string.
      *
      * @param formatterType string representation of formatter type (json, tsv)
@@ -64,5 +86,17 @@ public class IterationFormatterFactory {
      */
     public static IterationFormatter createFormatter(String formatterType) {
         return createFormatter(FormatterType.fromString(formatterType));
+    }
+
+    /**
+     * Creates an appropriate formatter based on the specified type string and
+     * config.
+     *
+     * @param formatterType string representation of formatter type (json, tsv)
+     * @param config configuration flags used by the formatter
+     * @return the appropriate IterationFormatter implementation
+     */
+    public static IterationFormatter createFormatter(String formatterType, AdoConfig config) {
+        return createFormatter(FormatterType.fromString(formatterType), config);
     }
 }

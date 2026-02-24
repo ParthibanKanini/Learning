@@ -74,12 +74,14 @@ public class AdoTool {
             int totalTeamsProcessed = 0;
             int totalIterationsCollected = 0;
 
+            // Read iteration filter from config, or null to fetch all sprints
+            List<String> includeOnlyIterationWithNames = config.getIncludeOnlyIterationWithNames();
+            logger.trace("Iterations to filter count: {}", includeOnlyIterationWithNames.size());
+
             for (String team : config.getTeams()) {
                 long teamStartTime = System.currentTimeMillis();
                 logger.info("Processing team: {}", team);
 
-                // Read iteration filter from config, or null to fetch all sprints
-                List<String> includeOnlyIterationWithNames = config.getIncludeOnlyIterationWithNames();
                 List<Iteration> projectTeamItr = getTeamSprints(project, team, apiClient, includeOnlyIterationWithNames);
 
                 if (config.isFetchCapacities()) {

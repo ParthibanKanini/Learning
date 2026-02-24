@@ -122,8 +122,8 @@ public class AdoConfig {
     }
 
     public List<String> getIncludeOnlyIterationWithNames() {
-        String includeOnlyIterationWithNames = config.getProperty("includeOnlyIterationWithNames");
-        return List.of(includeOnlyIterationWithNames.split(","));
+        String value = config.getProperty("includeOnlyIterationWithNames", "").trim();
+        return value.isEmpty() ? List.of() : List.of(value.split(","));
     }
 
     public boolean isFetchCapacities() {
@@ -136,6 +136,10 @@ public class AdoConfig {
 
     public boolean isFetchWorkItemTasks() {
         return Boolean.parseBoolean(config.getProperty("fetchWorkItemDetails.tasks", "false"));
+    }
+
+    public boolean isFetchWorkItemDetailsTasksCopilotTagExclusion() {
+        return Boolean.parseBoolean(config.getProperty("fetchWorkItemDetails.tasks.copilotTagExclusion", "false"));
     }
 
     public boolean isFetchWorkItemPullRequests() {

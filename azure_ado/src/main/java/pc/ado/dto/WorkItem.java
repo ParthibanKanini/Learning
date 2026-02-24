@@ -143,6 +143,7 @@ public class WorkItem {
      */
     public static class Task {
 
+        private final String taskId;
         private final String taskType;
         private final String state;
         private final String assignedTo;
@@ -150,13 +151,19 @@ public class WorkItem {
         private final String remainingWork;
         private final String completedWork;
 
-        public Task(String taskType, String state, String assignedTo, String originalEstimate, String remainingWork, String completedWork) {
+        public Task(String taskId, String taskType, String state, String assignedTo, String originalEstimate, String remainingWork,
+                String completedWork) {
+            this.taskId = taskId;
             this.taskType = taskType;
             this.state = state;
             this.assignedTo = assignedTo;
             this.originalEstimate = originalEstimate;
             this.remainingWork = remainingWork;
             this.completedWork = completedWork;
+        }
+
+        public String getTaskId() {
+            return taskId;
         }
 
         public String getTaskType() {
@@ -183,10 +190,15 @@ public class WorkItem {
             return completedWork;
         }
 
+        public String getCompletedWork() {
+            return completedWork;
+        }
+
         @Override
         public String toString() {
             return "Task{"
-                    + "taskType='" + taskType + '\''
+                    + "taskId='" + taskId + '\''
+                    + ", taskType='" + taskType + '\''
                     + ", state='" + state + '\''
                     + ", assignedTo='" + assignedTo + '\''
                     + ", originalEstimate='" + originalEstimate + '\''
