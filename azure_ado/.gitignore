@@ -3,7 +3,8 @@ src/main/resources/config.properties
 ado_request.http
 output.txt
 /logs/*
-*.txt 
+*.txt
+TODO
 
 # Maven build artifacts
 target/
@@ -12,7 +13,6 @@ target/
 
 # IDE
 .idea/
-.vscode/
 *.iml
 *.swp
 *.swo

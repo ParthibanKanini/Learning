@@ -10,6 +10,8 @@
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
+        <spotless.version>3.2.1</spotless.version>
+        <googleJavaFormat.version>1.34.1</googleJavaFormat.version>
     </properties>
 
     <build>
@@ -29,6 +31,29 @@
                 <configuration>
                     <mainClass>pc.ado.AdoTool</mainClass>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
+
+                <configuration>
+                    <java>
+                        <googleJavaFormat>
+                            <version>${googleJavaFormat.version}</version>
+                        </googleJavaFormat>
+                    </java>
+                </configuration>
+                <executions>
+                    <!-- Fails the build if formatting is not compliant -->
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

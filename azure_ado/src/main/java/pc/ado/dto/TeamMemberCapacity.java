@@ -1,35 +1,33 @@
 package pc.ado.dto;
 
-/**
- * Data Transfer Object for team member capacity information.
- */
+/** Data Transfer Object for team member capacity information. */
 public class TeamMemberCapacity {
 
-    private final String displayName;
-    private final double capacityPerDay;
-    // Days off including member PTO & Holidays
-    private final int daysOff;
+  private final String displayName;
+  private final double capacityPerDay;
+  private final int daysOff;
 
-    public TeamMemberCapacity(String displayName, double capacityPerDay, int daysOff) {
-        this.displayName = displayName;
-        this.capacityPerDay = capacityPerDay;
-        this.daysOff = daysOff;
-    }
+  public TeamMemberCapacity(
+      final String displayName, final double capacityPerDay, final int daysOff) {
+    this.displayName = displayName;
+    this.capacityPerDay = capacityPerDay;
+    this.daysOff = daysOff;
+  }
 
-    public String getDisplayName() {
-        return displayName;
-    }
+  public String getDisplayName() {
+    return displayName;
+  }
 
-    public double getCapacityPerDay() {
-        return capacityPerDay;
-    }
+  public double getCapacityPerDay() {
+    return capacityPerDay;
+  }
 
-    /**
-     * Days off including member PTO & Holidays
-     *
-     * @return daysOff
-     */
-    public int getDaysOff() {
-        return daysOff;
-    }
+  /**
+   * Gets days off including member PTO and holidays.
+   *
+   * @return number of days off
+   */
+  public int getDaysOff() {
+    return daysOff;
+  }
 }
