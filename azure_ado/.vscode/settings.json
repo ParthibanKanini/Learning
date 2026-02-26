@@ -1,0 +1,14 @@
+{
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "editor.formatOnType": true,
+
+    "[java]": {
+        "editor.defaultFormatter": "google-java-format"
+    },
+
+    "editor.rulers": [100],
+    "files.insertFinalNewline": true,
+    "files.trimTrailingWhitespace": true
+}
