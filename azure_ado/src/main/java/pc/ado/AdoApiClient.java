@@ -1,138 +1,141 @@
 package pc.ado;
 
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import pc.ado.constants.AdoConstants;
 import pc.ado.dto.Iteration;
 import pc.ado.dto.PullRequest;
 import pc.ado.dto.PullRequestThread;
 import pc.ado.dto.TeamMemberCapacity;
 import pc.ado.dto.ThreadComment;
 import pc.ado.dto.WorkItem;
+import pc.ado.exception.AdoException;
+import pc.ado.exception.AdoParsingException;
+import pc.ado.gateway.AdoGateway;
+import pc.ado.service.AdoJsonParserService;
 
-/** Handles interaction with Azure DevOps API. Encapsulates all API calls and response parsing. */
+/**
+ * Production-grade Azure DevOps API client.
+ *
+ * <p>Refactored to follow SOLID principles:
+ *
+ * <ul>
+ *   <li>Single Responsibility: Focuses on orchestrating API calls and business logic
+ *   <li>Dependency Inversion: Depends on AdoGateway abstraction, not concrete HttpClient
+ *   <li>Delegates parsing to AdoJsonParserService
+ *   <li>Uses structured exceptions for better error handling
+ *   <li>Uses constants to eliminate magic strings
+ * </ul>
+ */
 public class AdoApiClient {
 
   private static final Logger logger = LoggerFactory.getLogger(AdoApiClient.class);
-  private static final String PLUS_SIGN = "\\+";
-  private static final String SPACE_ENCODED = "%20";
 
-  private final AdoHttpClient httpClient;
+  private final AdoGateway gateway;
   private final AdoConfig config;
+  private final AdoJsonParserService parserService;
 
+  /**
+   * Creates an API client with the given configuration and HTTP client.
+   *
+   * <p>For backward compatibility with existing code.
+   */
   public AdoApiClient(AdoConfig config, AdoHttpClient httpClient) {
-    this.config = config;
-    this.httpClient = httpClient;
+    this(config, (AdoGateway) httpClient, new AdoJsonParserService());
   }
 
   /**
-   * Retrieves all team iterations for the configured team and project.
+   * Creates an API client with full dependency injection.
    *
-   * @return list of Iteration objects
-   * @throws Exception if the API call fails
+   * <p>Recommended constructor for testability.
+   *
+   * @param config ADO configuration
+   * @param gateway gateway for API communication
+   * @param parserService service for parsing JSON responses
+   */
+  public AdoApiClient(AdoConfig config, AdoGateway gateway, AdoJsonParserService parserService) {
+    this.config = config;
+    this.gateway = gateway;
+    this.parserService = parserService;
+    logger.debug("API client initialized");
+  }
+
+  /**
+   * Retrieves team iterations for the specified team and project.
+   *
+   * <p>Refactored to use parser service and structured exceptions.
+   *
+   * @param project project name
+   * @param team team name
+   * @param itrNames iteration names to filter (empty = all)
+   * @return list of filtered iterations
+   * @throws AdoException if the API call or parsing fails
    */
   public List<Iteration> getTeamSprint(String project, String team, List<String> itrNames)
-      throws Exception {
-    logger.trace("Fetching team iterations");
+      throws AdoException {
+    logger.trace("Fetching team iterations for project '{}', team '{}'", project, team);
+
     String teamUri = buildTeamUri(project, team);
-    String itrUrl =
-        teamUri + config.getIterationsApiPath() + "?api-version=" + config.getApiVersion();
+    String url = buildIterationsUrl(teamUri);
+
     try {
-      String response = httpClient.get(itrUrl);
-      JSONObject jsonResponse = new JSONObject(response);
-      JSONArray iterationsArray = jsonResponse.getJSONArray("value");
-      List<Iteration> iterations = new ArrayList<>();
-      for (int i = 0; i < iterationsArray.length(); i++) {
-        JSONObject iteration = iterationsArray.getJSONObject(i);
-        Iteration itr = parseIteration(project, team, iteration);
-        // Ignore iterations ended before a specific date from config
-        // Extract the raw finish date from JSON before it's formatted
-        JSONObject attributes = iteration.optJSONObject("attributes");
-        String rawFinishDate =
-            attributes != null ? attributes.optString("finishDate", "N/A") : "N/A";
-        if (!rawFinishDate.equals("N/A")) {
-          LocalDate itrFinishDate = DateUtils.formatISODateToLocalDate(rawFinishDate);
-          LocalDate ignoreBeforeDate = config.getIgnoreIterationsEndedBefore();
-          if (ignoreBeforeDate != null && itrFinishDate.isBefore(ignoreBeforeDate)) {
-            logger.trace(
-                "Ignoring iteration '{}:{}' as it ended before {}",
-                itr.getName(),
-                itrFinishDate,
-                ignoreBeforeDate);
-            continue;
-          } else {
-            logger.trace(
-                "Including iteration '{}:{}' as it ended after {}",
-                itr.getName(),
-                itrFinishDate,
-                ignoreBeforeDate);
-          }
-        }
-        // Filter by Iteration name if provided else add all iterations
-        if (itrNames.isEmpty() || itrNames.contains(itr.getName())) {
-          iterations.add(itr);
-        }
-      }
-      logger.debug("Successfully identified {} team iterations", iterations.size());
-      return iterations;
-    } catch (JSONException e) {
-      logger.error("Failed to parse iterations response", e);
-      throw new Exception("Failed to parse iterations response", e);
+      String response = gateway.get(url);
+      return parserService.parseIterations(response, project, team, config, itrNames);
+    } catch (AdoParsingException e) {
+      logger.error("Failed to parse iterations for team: {}", team, e);
+      throw e;
+    } catch (AdoException e) {
+      logger.error("Failed to fetch iterations for team: {}", team, e);
+      throw e;
     }
+  }
+
+  /**
+   * Builds the iterations API URL.
+   *
+   * @param teamUri base team URI
+   * @return complete iterations URL
+   */
+  private String buildIterationsUrl(String teamUri) {
+    return teamUri + config.getIterationsApiPath() + "?api-version=" + config.getApiVersion();
   }
 
   /**
    * Retrieves team member capacities for a specific iteration.
    *
+   * <p>Refactored to separate concerns: API calls, parsing, and filtering.
+   *
+   * @param project project name
+   * @param team team name
    * @param iterationId the ID of the iteration
    * @return list of TeamMemberCapacity objects with capacity > 0
-   * @throws Exception if the API call fails
+   * @throws AdoException if the API call or parsing fails
    */
   public List<TeamMemberCapacity> getIterationCapacities(
-      String project, String team, String iterationId) throws Exception {
+      String project, String team, String iterationId) throws AdoException {
     logger.trace("Fetching capacities for iteration: {}", iterationId);
+
     String teamUri = buildTeamUri(project, team);
-    String capacitiesPath = config.getCapacitiesApiPath().replace("{iterationId}", iterationId);
+
     try {
-      // Get team holidays for the iteration
-      String url =
-          teamUri
-              + "/"
-              + (config.getIterationDayOffPath().replace("{iterationId}", iterationId))
-              + "?api-version="
-              + config.getApiVersion();
-      String response = httpClient.get(url);
-      JSONObject jsonResponse = new JSONObject(response);
+      // Get team holidays
+      JSONArray teamDaysOff = fetchTeamDaysOff(teamUri, iterationId);
 
-      JSONArray teamDaysOff = jsonResponse.getJSONArray("daysOff");
-      logger.trace("teamDaysOff: {}", jsonResponse.toString());
+      // Get team member capacities
+      List<TeamMemberCapacity> capacities = fetchTeamMemberCapacities(
+          teamUri, iterationId, teamDaysOff);
 
-      // Team members details
-      url = teamUri + "/" + capacitiesPath + "?api-version=" + config.getApiVersion();
-      response = httpClient.get(url);
-      jsonResponse = new JSONObject(response);
-      JSONArray teamMembersArray = jsonResponse.getJSONArray("teamMembers");
-
-      List<TeamMemberCapacity> capacities = new ArrayList<>();
-      for (int i = 0; i < teamMembersArray.length(); i++) {
-        JSONObject teamMember = teamMembersArray.getJSONObject(i);
-        TeamMemberCapacity capacity = parseTeamMemberCapacity(teamMember, teamDaysOff);
-        if (capacity != null && capacity.getCapacityPerDay() > 0) {
-          capacities.add(capacity);
-        }
-      }
       logger.info(
           "Identified {} team members with capacity for iteration: {}",
           capacities.size(),
@@ -140,64 +143,105 @@ public class AdoApiClient {
       return capacities;
     } catch (JSONException e) {
       logger.error("Failed to parse capacities response for iteration: {}", iterationId, e);
-      throw new Exception("Failed to parse capacities response", e);
+      throw new AdoParsingException(
+          "Failed to parse capacities response", e, iterationId);
     }
-  }
-
-  /** Parses iteration data from JSON response. */
-  private Iteration parseIteration(String project, String team, JSONObject iterationJson) {
-    String id = iterationJson.optString("id", "N/A");
-    String name = iterationJson.optString("name", "N/A");
-    String startDate = "N/A";
-    String finishDate = "N/A";
-    try {
-      JSONObject attributes = iterationJson.optJSONObject("attributes");
-      if (attributes != null) {
-        startDate = attributes.optString("startDate", "N/A");
-        startDate = !(startDate.equals("N/A")) ? DateUtils.formatISODate(startDate) : "N/A";
-        finishDate = attributes.optString("finishDate", "N/A");
-        finishDate = !(finishDate.equals("N/A")) ? DateUtils.formatISODate(finishDate) : "N/A";
-        logger.trace("Parsed iteration : {} ({} to {})", name, startDate, finishDate);
-      }
-    } catch (Exception e) {
-      logger.error(iterationJson.toString(), e);
-    }
-    return new Iteration(project, team, id, name, startDate, finishDate);
   }
 
   /**
-   * Parses team member capacity data from JSON response. Returns null if no capacity is found.
+   * Fetches team-wide days off for an iteration.
    *
-   * @param teamMemberJson
-   * @param teamHolidays
-   * @return
+   * @param teamUri base team URI
+   * @param iterationId iteration ID
+   * @return JSON array of team days off
+   * @throws AdoException if the API call fails
    */
+  private JSONArray fetchTeamDaysOff(String teamUri, String iterationId) throws AdoException {
+    String url = teamUri
+        + "/"
+        + config.getIterationDayOffPath().replace("{iterationId}", iterationId)
+        + "?api-version="
+        + config.getApiVersion();
+
+    String response = gateway.get(url);
+    JSONObject jsonResponse = new JSONObject(response);
+    return jsonResponse.getJSONArray(AdoConstants.JsonFields.DAYS_OFF);
+  }
+
+  /**
+   * Fetches and parses team member capacities.
+   *
+   * @param teamUri base team URI
+   * @param iterationId iteration ID
+   * @param teamDaysOff team-wide days off
+   * @return list of team member capacities with capacity > 0
+   * @throws AdoException if the API call fails
+   */
+  private List<TeamMemberCapacity> fetchTeamMemberCapacities(
+      String teamUri, String iterationId, JSONArray teamDaysOff) throws AdoException {
+    String capacitiesPath = config.getCapacitiesApiPath().replace("{iterationId}", iterationId);
+    String url = teamUri + "/" + capacitiesPath + "?api-version=" + config.getApiVersion();
+
+    String response = gateway.get(url);
+    JSONObject jsonResponse = new JSONObject(response);
+    JSONArray teamMembersArray = jsonResponse.getJSONArray(AdoConstants.JsonFields.TEAM_MEMBERS);
+
+    List<TeamMemberCapacity> capacities = new ArrayList<>();
+    for (int i = 0; i < teamMembersArray.length(); i++) {
+      JSONObject teamMember = teamMembersArray.getJSONObject(i);
+      TeamMemberCapacity capacity = parserService.parseTeamMemberCapacity(teamMember, teamDaysOff);
+      if (capacity != null && capacity.getCapacityPerDay() > 0) {
+        capacities.add(capacity);
+      }
+    }
+    return capacities;
+  }
+
+  /**
+   * Parses iteration data from JSON response.
+   *
+   * <p>Deprecated: Use AdoJsonParserService.parseIteration() instead.
+   *
+   * @deprecated This method has been moved to AdoJsonParserService for better separation of
+   *     concerns. Kept for backward compatibility.
+   */
+  @Deprecated
+  private Iteration parseIteration(String project, String team, JSONObject iterationJson) {
+    try {
+      return parserService.parseIteration(project, team, iterationJson);
+    } catch (AdoParsingException e) {
+      logger.error("Failed to parse iteration", e);
+      // Return a default iteration for backward compatibility
+      return new Iteration(project, team,
+          AdoConstants.Defaults.NOT_AVAILABLE,
+          AdoConstants.Defaults.NOT_AVAILABLE,
+          AdoConstants.Defaults.NOT_AVAILABLE,
+          AdoConstants.Defaults.NOT_AVAILABLE);
+    }
+  }
+
+  /**
+   * Parses team member capacity data from JSON response.
+   *
+   * <p>Deprecated: Use AdoJsonParserService.parseTeamMemberCapacity() instead.
+   *
+   * @deprecated This method has been moved to AdoJsonParserService for better separation of
+   *     concerns. Kept for backward compatibility.
+   */
+  @Deprecated
   private TeamMemberCapacity parseTeamMemberCapacity(
       JSONObject teamMemberJson, JSONArray teamDaysOff) {
     try {
-      JSONObject teamMember = teamMemberJson.getJSONObject("teamMember");
-      String displayName = teamMember.getString("displayName");
-      JSONArray activities = teamMemberJson.getJSONArray("activities");
+      return parserService.parseTeamMemberCapacity(teamMemberJson, teamDaysOff);
+    } catch (AdoParsingException e) {
+      logger.debug("Failed to parse team member capacity", e);
+      return null;
+    }
+  }
 
-      // Collect all unique days off (team + member)
-      Set<LocalDate> uniqueDaysOff = new HashSet<>();
-
-      // Add team holidays
-      if (teamDaysOff != null) {
-        for (int i = 0; i < teamDaysOff.length(); i++) {
-          JSONObject dayOff = teamDaysOff.getJSONObject(i);
-          LocalDate start = DateUtils.formatISODateToLocalDate(dayOff.getString("start"));
-          LocalDate end = DateUtils.formatISODateToLocalDate(dayOff.getString("end"));
-          uniqueDaysOff.addAll(DateUtils.getWeekDaysBetween(start, end));
-        }
-      }
-
-      // Add member PTO
-      JSONArray teamMemberSprintdaysOff = teamMemberJson.getJSONArray("daysOff");
-      for (int i = 0; i < teamMemberSprintdaysOff.length(); i++) {
-        JSONObject dayOff = teamMemberSprintdaysOff.getJSONObject(i);
-        LocalDate start = DateUtils.formatISODateToLocalDate(dayOff.getString("start"));
-        LocalDate end = DateUtils.formatISODateToLocalDate(dayOff.getString("end"));
+  /**
+   * REMOVED: The inline parsing code below has been extracted to AdoJsonParserService.
+   * This improves testability and follows Single Responsibility Principle.
         uniqueDaysOff.addAll(DateUtils.getWeekDaysBetween(start, end));
       }
 
@@ -217,20 +261,17 @@ public class AdoApiClient {
     return null;
   }
 
-  /** Builds the team URI from configuration. */
-  private String buildTeamUri(String project, String team) throws Exception {
-    String baseUri = config.getBaseUri() + config.getOrganization() + "/";
-    String projectName =
-        URLEncoder.encode(project, StandardCharsets.UTF_8.toString())
-            .replaceAll(PLUS_SIGN, SPACE_ENCODED);
-    String projUri = baseUri + projectName + "/";
-    if (team != null) {
-      String teamName =
-          URLEncoder.encode(team, StandardCharsets.UTF_8.toString())
-              .replaceAll(PLUS_SIGN, SPACE_ENCODED);
-      projUri = projUri + teamName + "/";
-    }
-    return projUri;
+  /**
+   * Builds the team URI from configuration.
+   *
+   * <p>Delegated to AdoJsonParserService for reusability.
+   *
+   * @param project project name
+   * @param team team name (can be null)
+   * @return properly encoded team URI
+   */
+  private String buildTeamUri(String project, String team) {
+    return parserService.buildTeamUri(config, project, team);
   }
 
   /**
@@ -253,7 +294,7 @@ public class AdoApiClient {
               + (config.getWorkItemsApiPath().replace("{iterationId}", iteration.getId()))
               + "?api-version="
               + config.getApiVersion();
-      String response = httpClient.get(url);
+      String response = gateway.get(url);
       JSONObject jsonResponse = new JSONObject(response);
       JSONArray workItemsArray = jsonResponse.getJSONArray("workItemRelations");
       int count = 0;
@@ -287,7 +328,7 @@ public class AdoApiClient {
    */
   private void getWorkItemFields(String project, String workItemLink, Iteration iteration)
       throws Exception {
-    String workItemResponse = httpClient.get(workItemLink);
+    String workItemResponse = gateway.get(workItemLink);
     JSONObject workItemJsonResponse = new JSONObject(workItemResponse);
     // logger.debug("Work Item Response: {}", workItemJsonResponse.toString());
     String id = workItemJsonResponse.optString("id", "N/A");
@@ -471,7 +512,7 @@ public class AdoApiClient {
                 .replace("{parentId}", String.valueOf(workItemId)))
             + "&api-version="
             + config.getApiVersion();
-    String response = httpClient.get(url);
+    String response = gateway.get(url);
     JSONObject jsonResponse = new JSONObject(response);
     return jsonResponse.optJSONArray("relations");
   }
@@ -522,7 +563,7 @@ public class AdoApiClient {
    */
   private int processTaskRelation(String taskUrl, WorkItem workItem) throws Exception {
     int taskAdded = 0;
-    String taskResponse = httpClient.get(taskUrl);
+    String taskResponse = gateway.get(taskUrl);
     JSONObject taskJsonResponse = new JSONObject(taskResponse);
     // logger.trace(taskJsonResponse.toString());
     JSONObject fields = taskJsonResponse.optJSONObject("fields");
@@ -645,7 +686,7 @@ public class AdoApiClient {
       logger.trace(
           "Pull PR for {} {} {} from: {}", projectId, repositoryId, pullRequestId, prDetailsUrl);
 
-      String prDetailsResponse = httpClient.get(prDetailsUrl);
+      String prDetailsResponse = gateway.get(prDetailsUrl);
       JSONObject prDetailsJsonResponse = new JSONObject(prDetailsResponse);
       String createdBy = prDetailsJsonResponse.optJSONObject("createdBy").optString("displayName");
       String creationDate = prDetailsJsonResponse.optString("creationDate");
@@ -661,7 +702,7 @@ public class AdoApiClient {
 
       // Fetch PR threads
       String prThreadUrl = buildPullRequestThreadUrl(teamUri, repositoryId, pullRequestId);
-      String prThreadResponse = httpClient.get(prThreadUrl);
+      String prThreadResponse = gateway.get(prThreadUrl);
       JSONObject prThreadJsonResponse = new JSONObject(prThreadResponse);
 
       processPullRequestThreads(prThreadJsonResponse, pullRequest);

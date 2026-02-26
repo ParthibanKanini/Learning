@@ -151,6 +151,168 @@ public class WorkItem {
     return tags;
   }
 
+  /**
+   * Creates a new Builder for constructing WorkItem instances.
+   *
+   * @return a new WorkItem.Builder
+   */
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  /**
+   * Builder class for constructing WorkItem instances with a fluent API.
+   *
+   * <p>Implements the Builder pattern to handle the complexity of WorkItem construction with 17+
+   * fields. This improves readability and maintainability by:
+   *
+   * <ul>
+   *   <li>Providing clear, self-documenting construction code
+   *   <li>Allowing optional fields to be set easily
+   *   <li>Avoiding telescoping constructor anti-pattern
+   *   <li>Enabling immutability of WorkItem instances
+   * </ul>
+   */
+  public static class Builder {
+    private int id;
+    private String title = "";
+    private String type = "";
+    private String state = "";
+    private String assignedTo = "";
+    private String plannedVersion = "";
+    private String storyPoints = "";
+    private String qaStoryPoints = "";
+    private String originalStoryPoints = "";
+    private String priority = "";
+    private String severity = "";
+    private String createdDate = "";
+    private String createdBy = "";
+    private String devEndDate = "";
+    private String qaReadyDate = "";
+    private String qaEndDate = "";
+    private String tags = "";
+    private boolean hasImplementationDetails = false;
+
+    private Builder() {}
+
+    public Builder id(int id) {
+      this.id = id;
+      return this;
+    }
+
+    public Builder title(String title) {
+      this.title = title;
+      return this;
+    }
+
+    public Builder type(String type) {
+      this.type = type;
+      return this;
+    }
+
+    public Builder state(String state) {
+      this.state = state;
+      return this;
+    }
+
+    public Builder assignedTo(String assignedTo) {
+      this.assignedTo = assignedTo;
+      return this;
+    }
+
+    public Builder plannedVersion(String plannedVersion) {
+      this.plannedVersion = plannedVersion;
+      return this;
+    }
+
+    public Builder storyPoints(String storyPoints) {
+      this.storyPoints = storyPoints;
+      return this;
+    }
+
+    public Builder qaStoryPoints(String qaStoryPoints) {
+      this.qaStoryPoints = qaStoryPoints;
+      return this;
+    }
+
+    public Builder originalStoryPoints(String originalStoryPoints) {
+      this.originalStoryPoints = originalStoryPoints;
+      return this;
+    }
+
+    public Builder priority(String priority) {
+      this.priority = priority;
+      return this;
+    }
+
+    public Builder severity(String severity) {
+      this.severity = severity;
+      return this;
+    }
+
+    public Builder createdDate(String createdDate) {
+      this.createdDate = createdDate;
+      return this;
+    }
+
+    public Builder createdBy(String createdBy) {
+      this.createdBy = createdBy;
+      return this;
+    }
+
+    public Builder devEndDate(String devEndDate) {
+      this.devEndDate = devEndDate;
+      return this;
+    }
+
+    public Builder qaReadyDate(String qaReadyDate) {
+      this.qaReadyDate = qaReadyDate;
+      return this;
+    }
+
+    public Builder qaEndDate(String qaEndDate) {
+      this.qaEndDate = qaEndDate;
+      return this;
+    }
+
+    public Builder tags(String tags) {
+      this.tags = tags;
+      return this;
+    }
+
+    public Builder hasImplementationDetails(boolean hasImplementationDetails) {
+      this.hasImplementationDetails = hasImplementationDetails;
+      return this;
+    }
+
+    /**
+     * Builds and returns an immutable WorkItem instance.
+     *
+     * @return a new WorkItem
+     */
+    public WorkItem build() {
+      return new WorkItem(
+          id,
+          title,
+          type,
+          state,
+          assignedTo,
+          plannedVersion,
+          storyPoints,
+          qaStoryPoints,
+          originalStoryPoints,
+          priority,
+          severity,
+          createdDate,
+          createdBy,
+          devEndDate,
+          qaReadyDate,
+          qaEndDate,
+          hasImplementationDetails,
+          tags);
+    }
+  }
+
   /** Inner class representing a task within a work item. */
   public static class Task {
 
